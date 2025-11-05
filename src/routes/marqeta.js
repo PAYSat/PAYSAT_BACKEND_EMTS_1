@@ -3,12 +3,12 @@ import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import * as simulations from '../services/simulations.js';
 
-const r = Router();
+const router = Router();
 
 /**
  * Crea un usuario en Marqeta y lo guarda en Firebase.
  */
-r.post('/users', async (req, res) => {
+router.post('/users', async (req, res) => {
   try {
     const payload = {
       first_name: req.body.firstName,
@@ -27,7 +27,7 @@ r.post('/users', async (req, res) => {
  * CARD PRODUCTO TRAJETA FISICA
  * Crea un Card Products en Marqeta y lo guarda en Firebase.
  */
-r.post('/cardproducts/physical', async (req, res) => {
+router.post('/cardproducts/physical', async (req, res) => {
   try {
     const payload = {
       name: "Demo Product - Physical",
@@ -48,7 +48,7 @@ r.post('/cardproducts/physical', async (req, res) => {
       }
     };
     const { data } = await marqeta.post('/cardproducts', payload);
-    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqetaCardProduct: data, createdAt: new Date() });
+    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqeta_card_product_data: data, createdAt: new Date() });
     res.json({ ok: true, cardProduct: data });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
@@ -59,7 +59,7 @@ r.post('/cardproducts/physical', async (req, res) => {
  * CARD PRODUCTO TRAJETA VIRTUAL
  * Crea un Card Products en Marqeta y lo guarda en Firebase.
  */
-r.post('/cardproducts/virtual', async (req, res) => {
+router.post('/cardproducts/virtual', async (req, res) => {
   try {
     const payload = {
       name: "Demo Product - Virtual",
@@ -84,7 +84,7 @@ r.post('/cardproducts/virtual', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/cardproducts', payload);
-    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqetaCardProduct: data, createdAt: new Date() });
+    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqeta_card_product_data: data, createdAt: new Date() });
     res.json({ ok: true, cardProduct: data });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
@@ -94,7 +94,7 @@ r.post('/cardproducts/virtual', async (req, res) => {
 /**
  * Emite una tarjeta virtual para el usuario.
  */
-r.post('/cards/virtual', async (req, res) => {
+router.post('/cards/virtual', async (req, res) => {
   try {
     const payload = {
       "user_token": req.body.user_token,
@@ -103,8 +103,8 @@ r.post('/cards/virtual', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/cards', payload);
-    // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_four.
-    await db.collection('Marqeta_Cards').doc(data.token).set({ card: data, createdAt: new Date() });
+    // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_fourouter.
+    await db.collection('Marqeta_Cards').doc(data.token).set({ card_data: data, createdAt: new Date() });
 
     res.json({
       ok: true,
@@ -125,7 +125,7 @@ r.post('/cards/virtual', async (req, res) => {
 /**
  * Emite una tarjeta física para el usuario.
  */
-r.post('/cards/physical', async (req, res) => {
+router.post('/cards/physical', async (req, res) => {
   try {
     const payload = {
       "user_token": req.body.user_token,
@@ -147,7 +147,7 @@ r.post('/cards/physical', async (req, res) => {
     }
 
     const { data } = await marqeta.post('/cards', payload);
-    // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_four.
+    // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_fourouter.
     await db.collection('Marqeta_Cards').doc(data.token).set({ card: data, createdAt: new Date() });
 
     res.json({
@@ -168,7 +168,7 @@ r.post('/cards/physical', async (req, res) => {
 /**
  * Crear un funding source.
  */
-r.post('/fundingsources/programgateway', async (req, res) => {
+router.post('/fundingsources/programgateway', async (req, res) => {
   try {
     const payload = {
       name: req.body.name || "Demo Funding Source",
@@ -179,7 +179,7 @@ r.post('/fundingsources/programgateway', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/fundingsources/programgateway', payload);
-    await db.collection('Marqeta_FundingSources').doc(data.token).set({ card: data, createdAt: new Date() });
+    await db.collection('Marqeta_FundingSources').doc(data.token).set({ marqeta_funding_source_data: data, createdAt: new Date() });
 
     res.json({
       ok: true,
@@ -195,9 +195,9 @@ r.post('/fundingsources/programgateway', async (req, res) => {
 });
 
 /**
- * Crear un GPA order.
+ * Crear un GPA orderouter.
  */
-r.post('/gpaorders', async (req, res) => {
+router.post('/gpaorders', async (req, res) => {
   try {
     const payload = {
       user_token: req.body.user_token,
@@ -232,7 +232,7 @@ r.post('/gpaorders', async (req, res) => {
  * Simula una compra (purchase) en sandbox para activar flujo JIT+webhooks.
  * Usa Simulations 2.0 si está disponible; si no, fallback legacy.
  */
-r.post('/authorization', async (req, res) => {
+router.post('/authorization', async (req, res) => {
   try {
     const payload = {
       amount: req.body.amount || 5.00,
@@ -260,7 +260,7 @@ r.post('/authorization', async (req, res) => {
   }
 });
 
-r.post('/authorization/clearing', async (req, res) => {
+router.post('/authorization/clearing', async (req, res) => {
   try {
     const payload = {
       "preceding_related_transaction_token": req.body.authorization_transaction_token,
@@ -283,7 +283,7 @@ r.post('/authorization/clearing', async (req, res) => {
 });
 
 // Reversión de una autorización no clarificada (No Clearing yet) (authorization reversal)
-r.post('/authorization/reversal', async (req, res) => {
+router.post('/authorization/reversal', async (req, res) => {
   try {
     const payload = {
       "preceding_related_transaction_token": req.body.authorization_transaction_token,
@@ -306,7 +306,7 @@ r.post('/authorization/reversal', async (req, res) => {
 });
 
 // Reembolso de una compra ya clarificada (Clearing done) (authorization refund)
-r.post('/authorization/refund', async (req, res) => {
+router.post('/authorization/refund', async (req, res) => {
   try {
     const payload = {
       card_token: req.body.card_token,
@@ -357,7 +357,7 @@ r.post('/authorization/refund', async (req, res) => {
  * Consulta el balance de un usuario en Marqeta.
  * Soporta parámetro ?simplified=true para respuesta simplificada
  */
-r.get('/balances/:user_token', async (req, res) => {
+router.get('/balances/:user_token', async (req, res) => {
   try {
     const { user_token } = req.params;
     const { simplified } = req.query;
@@ -412,7 +412,7 @@ r.get('/balances/:user_token', async (req, res) => {
  * Lista todos los Card Products desde Firebase
  * Recupera solo los tokens de la colección Marqeta_CardProducts sin filtros
  */
-r.get('/cardproducts/list', async (req, res) => {
+router.get('/cardproducts/list', async (req, res) => {
   try {
     console.log('📋 Obteniendo tokens de Card Products desde Firebase...');
     
@@ -459,7 +459,7 @@ r.get('/cardproducts/list', async (req, res) => {
  * Filtra por gpaOrder.user_token y suma/resta según el estado
  * Desde Firebase, no desde Marqeta directamente
  */
-r.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
+router.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
   try {
     const { user_token } = req.params;
     
@@ -474,7 +474,7 @@ r.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
 
     // Obtener todas las órdenes GPA del usuario
     const gpaOrdersSnapshot = await db.collection('Marqeta_GPA_Orders')
-      .where('gpaOrder.user_token', '==', user_token)
+      .where('gpaOrderouter.user_token', '==', user_token)
       .get();
 
     if (gpaOrdersSnapshot.empty) {
@@ -499,9 +499,9 @@ r.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
       const data = doc.data();
       const gpaOrder = data.gpaOrder;
       
-      if (gpaOrder && gpaOrder.amount) {
-        const amount = parseFloat(gpaOrder.amount);
-        const state = gpaOrder.state;
+      if (gpaOrder && gpaOrderouter.amount) {
+        const amount = parseFloat(gpaOrderouter.amount);
+        const state = gpaOrderouter.state;
         
         if (state === 'COMPLETION') {
           // COMPLETION: se suma al balance
@@ -515,11 +515,11 @@ r.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
 
         orders.push({
           order_id: doc.id,
-          token: gpaOrder.token,
+          token: gpaOrderouter.token,
           amount: amount,
           state: state,
-          currency_code: gpaOrder.currency_code || 'USD',
-          created_time: gpaOrder.created_time || data.createdAt,
+          currency_code: gpaOrderouter.currency_code || 'USD',
+          created_time: gpaOrderouter.created_time || data.createdAt,
           impact: state === 'COMPLETION' ? 'positive' : 'negative'
         });
       }
@@ -550,4 +550,4 @@ r.get('/gpaorders/balance/:user_token/paysat', async (req, res) => {
 });
 
 
-export default r;
+export default router;

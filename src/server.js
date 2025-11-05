@@ -6,7 +6,7 @@ import { applyCors } from './middlewares/cors.js';
 import { applySecurity } from './middlewares/security.js';
 import { authFirebaseRequired } from './middlewares/auth-firebase.js';
 
-import authRouter from './routes/users.js';
+import authRouter from './routes/paysat_users.js';
 import stripeWebhookRouter from './webhooks/stripeWebhook.js';
 
 
@@ -39,13 +39,15 @@ import marqetaRouter from './routes/marqeta.js';
 import paymentsRouter from './routes/payments.js';
 import marqetaWebhooksRouter from './routes/marqeta_webhooks.js';
 import stripAdminRouter from './routes/stripe.js';
-import usersFirebaseRouter from './routes/users.js';
+import usersFirebaseRouter from './routes/paysat_users.js';
+import queriesFirebaseRouter from './routes/paysat_queries.js';
+
 app.use('/webhooks', marqetaWebhooksRouter);
 app.use('/api/marqeta', marqetaRouter);
 app.use('/api/payments', paymentsRouter);   //<--- Stripe payments endpoints
 app.use('/api/stripe', stripAdminRouter); // <-- Stripe admin endpoints
 app.use('/api/users', usersFirebaseRouter); // <-- Firebase users endpoints
-
+app.use('/api/paysat/queries', queriesFirebaseRouter); // <-- Firebase queries endpoints
 
 // ====== Webhooks (sin bearer; verificación por firma propia) ======
 app.use('/webhooks/stripe', stripeWebhookRouter);

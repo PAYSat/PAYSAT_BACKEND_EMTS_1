@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser'; // raw para Stripe
-import { stripe } from '../services/stripe.js';
+import { stripe } from '../config/stripe.js';
 import { db } from '../config/firebase.js';
 import { createGPAOrder } from '../services/marqeta.js';
 

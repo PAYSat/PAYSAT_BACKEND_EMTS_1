@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { stripe, apiVersion, publishableKey } from '../services/stripe.js';
+import { stripe, apiVersion, publishableKey } from '../config/stripe.js';
 import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { redactEphemeralKey, redactPaymentIntent, redactBackendResponseToClient } from '../utils/redact.js';

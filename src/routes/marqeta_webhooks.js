@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { stripe } from '../services/stripe.js';
+import { stripe } from '../config/stripe.js';
 import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { handleJit } from '../services/jit.js';
