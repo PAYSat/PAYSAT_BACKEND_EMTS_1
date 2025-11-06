@@ -40,6 +40,76 @@ router.get('/product-funding-source-token', async (_req, res) => {
   }
 });
 
+
+router.get('/marqeta-user-token/:paysatUID', async (_req, res) => {
+
+  let { paysatUID } = _req.params;
+
+  try {
+    // console.log('🔍 paysatUID original recibido:', paysatUID);
+
+    // Limpiar el paysatUID de caracteres no deseados al inicio
+    if (paysatUID.startsWith(':')) {
+      paysatUID = paysatUID.substring(1);
+      // console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
+    }
+
+    // Validar que paysatUID no esté vacío después de la limpieza
+    if (!paysatUID || paysatUID.trim() === '') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'paysatUID es requerido y no puede estar vacío' 
+      });
+    }
+
+    // console.log('🔍 Buscando usuario con paysatUID limpio:', paysatUID);
+
+    // Obtener el documento del usuario Marqeta
+    const marqetaUsersDoc = await db.collection('Marqeta_Users')
+                                    .where('paysatUID', '==', paysatUID)  
+                                    .limit(1)
+                                    .get();
+    
+    // console.log('� Documentos encontrados:', marqetaUsersDoc.size);
+    
+    let marqetaUserToken = "";
+    
+    if (!marqetaUsersDoc.empty) {
+      const userData = marqetaUsersDoc.docs[0].data();
+      // console.log('📄 Estructura del documento:', JSON.stringify(userData, null, 2));
+      
+      // Intentar diferentes rutas para obtener el token
+      marqetaUserToken = userData.marqetaUser?.token || 
+                        userData.marqeta_user?.token || 
+                        userData.token || 
+                        "";
+      
+      // console.log('🎯 Token encontrado:', marqetaUserToken);
+    } else {
+      console.log('❌ No se encontró usuario con paysatUID:', paysatUID);
+    }
+
+    res.json({ 
+      "ok": true,
+      "data": {
+        "token": marqetaUserToken,
+        "found": !marqetaUsersDoc.empty,
+        "paysatUID": paysatUID,
+        "originalPaysatUID": _req.params.paysatUID
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Error en la obtención de token de usuario Marqeta:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
+
 // Ejemplo admin-only (descomentar si usas roles):
 // router.get('/admin/metrics', requireRole('admin'), (req, res) => {
 //   res.json({ ok: true, data: { uptime: process.uptime() } });

@@ -10,7 +10,7 @@ export const userProfile = async (req, res) => {
     // ¡OJO! Aquí siempre usa admin.auth(), JAMÁS db.auth()
     const userRecord = await admin.auth().getUser(userReq.uid);
 
-    const userData = await admin.firestore().collection('users').doc(userReq.uid).get();
+    const userData = await admin.firestore().collection('users').doc(userReq.uid).get();    
     
     if (userData.exists) {
       // Formar el objeto de respuesta primero
@@ -21,7 +21,8 @@ export const userProfile = async (req, res) => {
           imageUrlUser: userData.data().imageUrlUser ?? userReq.imageUrlUser ?? null,
           nombreCompleto: userData.data().nombreCompleto ?? userReq.fullName ?? null,
           primerNombre: userData.data().primerNombre ?? userReq.firstName ?? null,
-          apellido: userData.data().apellido ?? userReq.lastName ?? null,
+          nombres: userData.data().nombres ?? null,
+          apellidos: userData.data().apellidos ?? null,
           telefono: userData.data().telefono ?? userReq.phoneNumber ?? null,
           email: userRecord.email ?? userReq.email ?? null,
           role: userData.data().rol ?? userReq.role ?? null,
@@ -31,7 +32,7 @@ export const userProfile = async (req, res) => {
           pais: userData.data().pais ?? null,
           ciudad: userData.data().ciudad ?? null,
           direccion: userData.data().direccionPersonalOCR ?? null,
-          numeroCuentaPAYSAT: userData.data().numeroCuentaPAYSAT ?? null,
+          numeroCuentaPAYSAT: userData.data().numeroCuentaPAYSAT ?? null
         }
       };
 

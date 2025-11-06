@@ -8,18 +8,62 @@ const router = Router();
 /**
  * Crea un usuario en Marqeta y lo guarda en Firebase.
  */
-router.post('/users', async (req, res) => {
+router.post('/users/create', async (req, res) => {
   try {
+    const paysatUID = req.body.paysatUID;
+    
+    // Validar que paysatUID esté presente
+    if (!paysatUID) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'paysatUID es requerido' 
+      });
+    }
+
+    // Verificar si ya existe un usuario con el mismo paysatUID
+    const existingUserQuery = await db.collection('Marqeta_Users')
+      .where('paysatUID', '==', paysatUID)
+      .limit(1)
+      .get();
+
+    if (!existingUserQuery.empty) {
+      return res.status(409).json({ 
+        ok: false, 
+        error: 'Ya existe un usuario con este paysatUID',
+        existingUser: existingUserQuery.docs[0].data() 
+      });
+    }
+
+    // Si no existe, proceder con la creación
     const payload = {
       first_name: req.body.firstName,
       last_name: req.body.lastName,
-      email: req.body.email
+      email: `paysat.${req.body.email}`,
+      active: true
     };
+
+    console.log(payload)
+        
     const { data } = await marqeta.post('/users', payload);
-    await db.collection('Marqeta_Users').doc(data.token).set({ marqetaUser: data, createdAt: new Date() });
+    
+    await db.collection('Marqeta_Users').doc(data.token).set({ 
+      marqetaUser: data, 
+      paysatUID, 
+      createdAt: new Date() 
+    });
+    
     res.json({ ok: true, user: data });
   } catch (e) {
+    if (e.response && e.response.status === 409) {
+      return res.status(409).json({ 
+        ok: false, 
+        error: 'Usuario ya existe en Marqeta', 
+      });
+    }
+    // Puede ser que el correo esté repetido en Marqeta
+  
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+
   }
 });
 
@@ -60,10 +104,12 @@ router.post('/cardproducts/physical', async (req, res) => {
  * Crea un Card Products en Marqeta y lo guarda en Firebase.
  */
 router.post('/cardproducts/virtual', async (req, res) => {
+  const fecha = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // console.log('Fecha actual:', fecha);
   try {
     const payload = {
       name: "Demo Product - Virtual",
-      start_date: "2025-01-01",
+      start_date: fecha.split(' ')[0], // Formato YYYY-MM-DD
       config: {
         card_life_cycle: {
           activate_upon_issue: req.body.activate_upon_issue || true
@@ -84,7 +130,7 @@ router.post('/cardproducts/virtual', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/cardproducts', payload);
-    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqeta_card_product_data: data, createdAt: new Date() });
+    await db.collection('Marqeta_CardProducts').doc(data.token).set({ marqeta_card_product_data: data, createdAt: fecha });
     res.json({ ok: true, cardProduct: data });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
@@ -179,7 +225,7 @@ router.post('/fundingsources/programgateway', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/fundingsources/programgateway', payload);
-    await db.collection('Marqeta_FundingSources').doc(data.token).set({ marqeta_funding_source_data: data, createdAt: new Date() });
+    await db.collection('Marqeta_FundingSources').doc(data.token).set({ marqeta_funding_source_data: data, createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') });
 
     res.json({
       ok: true,

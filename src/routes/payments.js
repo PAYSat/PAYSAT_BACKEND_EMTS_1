@@ -7,7 +7,7 @@ import { redactEphemeralKey, redactPaymentIntent, redactBackendResponseToClient 
 const router = Router();
 
 async function getOrCreateCustomer(marqeta_user_token, email, uid) {
-  console.log('getOrCreateCustomer called with:', { marqeta_user_token, email, uid });
+  // console.log('getOrCreateCustomer called with:', { marqeta_user_token, email, uid });
   
   if (!marqeta_user_token) {
     throw new Error('marqeta_user_token es requerido para crear/obtener customer');
@@ -19,7 +19,7 @@ async function getOrCreateCustomer(marqeta_user_token, email, uid) {
 
   if (snap.exists) {
     const existingData = snap.data();
-    console.log('Customer existente encontrado para token:', marqeta_user_token, 'customerId:', existingData.customerId);
+    // console.log('Customer existente encontrado para token:', marqeta_user_token, 'customerId:', existingData.customerId);
     return existingData.customerId;
   }
 
@@ -52,7 +52,9 @@ async function findMarqetaUserTokenByUid(uid) {
 
 router.post('/init', async (req, res) => {
   const {
-    uid, email, amount,
+    uid,
+    email,
+    amount,
     currency = 'usd',
     marqeta_user_token = '',
     payment_session_id
