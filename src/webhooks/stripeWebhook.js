@@ -2,7 +2,6 @@ import { Router } from 'express';
 import bodyParser from 'body-parser'; // raw para Stripe
 import { stripe } from '../config/stripe.js';
 import { db } from '../config/firebase.js';
-import { createGPAOrder } from '../services/marqeta.js';
 
 const router = Router();
 
@@ -37,7 +36,7 @@ router.post('/stripe',
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Guarda evento genérico del webhook (con raw “limpio”)
+    // Guarda evento genérico del webhook (con raw "limpio")
     try {
       await db.collection('webhook_events').doc(event.id).set({
         id: event.id,
@@ -48,100 +47,14 @@ router.post('/stripe',
       }, { merge: true });
     } catch (_) {}
 
-    if (event.type === 'payment_intent.succeeded') {
-      const pi = event.data.object;
-
-      // Espejo por PI
-      const paymentDoc = db.collection('payments').doc(pi.id);
-      await paymentDoc.set({
-        id: pi.id,
-        amount: pi.amount,
-        amount_received: pi.amount_received,
-        currency: pi.currency,
-        status: pi.status,
-        customer: pi.customer,
-        created: pi.created,
-        metadata: pi.metadata || {},
-        updatedAt: new Date(),
-      }, { merge: true });
-
-      // Correlación por session id
-      const sessionId = pi.metadata?.payment_session_id;
-      const sessionRef = sessionId ? db.collection('payments_sessions').doc(sessionId) : null;
-
-      // Log del webhook (payload completo del PI + metadatos clave)
-      if (sessionRef) {
-        await sessionRef.set({
-          status: 'confirmed',
-          confirmedAt: new Date(),
-        }, { merge: true });
-
-        await sessionRef.collection('logs').add({
-          type: 'webhook:payment_intent.succeeded',
-          payload: {
-            payment_intent: {
-              id: pi.id,
-              amount: pi.amount,
-              amount_received: pi.amount_received,
-              currency: pi.currency,
-              status: pi.status,
-              customer: pi.customer,
-              metadata: pi.metadata || {}
-            },
-            event_id: event.id
-          },
-          createdAt: new Date(),
-        });
-      }
-
-      // Recarga Marqeta (si hay token)
-      const marqeta_user_token = pi.metadata?.marqeta_user_token;
-      if (marqeta_user_token) {
-        const amountDecimal = (pi.amount_received || pi.amount) / 100.0;
-        try {
-          // createGPAOrder devuelve { request, response }
-          const { request: marq_request, response: marq_response } = await createGPAOrder({
-            user_token: marqeta_user_token,
-            amount: amountDecimal,
-            currency_code: (pi.currency || 'usd').toUpperCase(),
-            memo: `Stripe PI ${pi.id}`,
-            tags: `stripe,pi:${pi.id}`
-          });
-
-          // Guarda request/response de Marqeta bajo payments/{pi}/marqeta
-          const marqDocId = (marq_response && marq_response.token) ? marq_response.token : `gpa_${Date.now()}`;
-          await paymentDoc.collection('Stripe_RecargasEnMarqeta')
-            .doc(marqDocId)
-            .set({
-              request: marq_request,
-              response: marq_response,
-              linked_payment_intent: pi.id,
-              createdAt: new Date()
-            });
-
-          // Log también en la sesión
-          if (sessionRef) {
-            await sessionRef.collection('logs').add({
-              type: 'marqeta:gpaorder',
-              payload: {
-                request: marq_request,
-                response: marq_response
-              },
-              createdAt: new Date(),
-            });
-          }
-        } catch (e) {
-          console.error('Marqeta GPA error', e.message);
-          if (sessionRef) {
-            await sessionRef.collection('logs').add({
-              type: 'error',
-              where: 'marqeta:gpaorder',
-              message: e.message,
-              createdAt: new Date(),
-            });
-          }
-        }
-      }
+    console.log('🎯 Webhook de Stripe recibido');
+    
+    // DESACTIVADO: Processing movido a marqeta_webhooks.js para evitar duplicación
+    // Solo logging de eventos para auditoría
+    if (event.type === 'payment_intent.succeeded' || event.type === 'charge.succeeded') {
+      console.log(`ℹ️ Evento ${event.type} recibido - procesamiento delegado a marqeta_webhooks.js`);
+    } else {
+      console.log(`ℹ️ Webhook event type not handled: ${event.type}`);
     }
 
     res.json({ received: true });

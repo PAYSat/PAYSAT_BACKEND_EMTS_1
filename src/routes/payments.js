@@ -3,10 +3,11 @@ import { stripe, apiVersion, publishableKey } from '../config/stripe.js';
 import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { redactEphemeralKey, redactPaymentIntent, redactBackendResponseToClient } from '../utils/redact.js';
+import { emailService } from '../services/send_email.js';
 
 const router = Router();
 
-async function getOrCreateCustomer(marqeta_user_token, email, uid) {
+async function getOrCreateCustomer(marqeta_user_token, paysat_uid, email, uid) {
   // console.log('getOrCreateCustomer called with:', { marqeta_user_token, email, uid });
   
   if (!marqeta_user_token) {
@@ -37,7 +38,8 @@ async function getOrCreateCustomer(marqeta_user_token, email, uid) {
     email: email || null,
     uid: uid || null,
     marqeta_user_token: marqeta_user_token,
-    createdAt: new Date()
+    paysatUID: paysat_uid || '',
+    createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
   });
 
   console.log('Nuevo customer creado:', customer.id, 'para token:', marqeta_user_token);
@@ -57,6 +59,7 @@ router.post('/init', async (req, res) => {
     amount,
     currency = 'usd',
     marqeta_user_token = '',
+    paysat_uid = '',
     payment_session_id
   } = req.body || {};
 
@@ -84,7 +87,8 @@ router.post('/init', async (req, res) => {
       amount_cents: amount,    // Mantener también en centavos para referencia
       currency,
       marqeta_user_token: marqetaToken || null,
-      createdAt: new Date(),
+      paysatUID: paysat_uid || null,
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       status: 'draft'
     }, { merge: true });
 
@@ -99,7 +103,7 @@ router.post('/init', async (req, res) => {
         marqeta_user_token: marqetaToken, 
         payment_session_id: sessionId 
       },
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
 
     // Verificar que tenemos marqeta_user_token antes de crear customer
@@ -109,7 +113,7 @@ router.post('/init', async (req, res) => {
       });
     }
 
-    const customerId = await getOrCreateCustomer(marqetaToken, email, uid);
+    const customerId = await getOrCreateCustomer(marqetaToken, paysat_uid, email, uid);
 
     const ek_request = { customer: customerId, apiVersion };
     const ephKey = await stripe.ephemeralKeys.create(
@@ -119,12 +123,12 @@ router.post('/init', async (req, res) => {
     await sessionRef.collection('logs').add({
       type: 'stripe:request:ephemeral_keys.create',
       payload: ek_request,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
     await sessionRef.collection('logs').add({
       type: 'stripe:response:ephemeral_keys.create',
       payload: redactEphemeralKey(ephKey),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
 
     const pi_request = {
@@ -143,12 +147,12 @@ router.post('/init', async (req, res) => {
     await sessionRef.collection('logs').add({
       type: 'stripe:request:payment_intents.create',
       payload: pi_request,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
     await sessionRef.collection('logs').add({
       type: 'stripe:response:payment_intents.create',
       payload: redactPaymentIntent(paymentIntent),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
 
     await sessionRef.set({
@@ -167,7 +171,7 @@ router.post('/init', async (req, res) => {
     await sessionRef.collection('logs').add({
       type: 'backend:response:init',
       payload: redactBackendResponseToClient(backendResponse),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
 
     res.json(backendResponse);
@@ -180,7 +184,7 @@ router.post('/init', async (req, res) => {
           type: 'error',
           where: 'payments/init',
           message: err.message,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
     } catch (_) {}
     res.status(500).json({ error: err.message });
@@ -212,7 +216,7 @@ router.post('/customers/migrate', async (req, res) => {
         await newRef.set({
           ...data,
           migratedFrom: oldDocId,
-          migratedAt: new Date()
+          migratedAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
         });
 
         await doc.ref.delete();
@@ -337,6 +341,8 @@ router.post('/client-confirm', async (req, res) => {
 
     // Verificar el PaymentIntent en Stripe
     const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+
+    // console.log(paymentIntent)
     
     if (paymentIntent.status !== 'succeeded') {
       return res.status(400).json({ 
@@ -412,13 +418,13 @@ router.post('/confirm-and-reload', async (req, res) => {
     await sessionRef.collection('logs').add({
       type: 'stripe:request:payment_intents.retrieve',
       payload: { payment_intent_id },
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
     
     await sessionRef.collection('logs').add({
       type: 'stripe:response:payment_intents.retrieve',
       payload: redactPaymentIntent(paymentIntent),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
 
     if (paymentIntent.status !== 'succeeded') {
@@ -440,7 +446,7 @@ router.post('/confirm-and-reload', async (req, res) => {
       await sessionRef.collection('logs').add({
         type: 'marqeta:request:gpaorders.create',
         payload: gpaPayload,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
 
       const { data: gpaOrder } = await marqeta.post('/gpaorders', gpaPayload);
@@ -448,7 +454,7 @@ router.post('/confirm-and-reload', async (req, res) => {
       await sessionRef.collection('logs').add({
         type: 'marqeta:response:gpaorders.create',
         payload: gpaOrder,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
 
       // Guardar la orden GPA en Firebase
@@ -457,7 +463,7 @@ router.post('/confirm-and-reload', async (req, res) => {
         origin: "STRIPE_CONFIRM_AND_CARD_RELOAD",
         payment_session_id: payment_session_id,
         payment_intent_id: payment_intent_id,
-        createdAt: new Date()
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
       });
 
       // Actualizar la sesión con la información del GPA order
@@ -465,9 +471,78 @@ router.post('/confirm-and-reload', async (req, res) => {
         gpa_order_token: gpaOrder.token,
         gpa_order_amount: gpaOrder.amount,
         gpa_order_state: gpaOrder.state,
+        marqeta_funding_source_token: funding_source_token,
         status: 'completed',
-        completedAt: new Date()
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
       }, { merge: true });
+
+      console.log('🔄 Recarga completada exitosamente, preparando envío de email...');
+      console.log('📧 Datos de la sesión para email:', {
+        email: sessionData.email,
+        uid: sessionData.uid,
+        amount: sessionData.amount,
+        currency: sessionData.currency
+      });
+
+      // 📧 Enviar email de confirmación de recarga
+      try {
+        // Intentar obtener más información del usuario si está disponible
+        let userName = 'Usuario';
+        if (sessionData.email) {
+          userName = sessionData.email.split('@')[0];
+          console.log('📧 Email disponible:', sessionData.email);
+        } else {
+          console.log('❌ No hay email en sessionData');
+          console.log('📄 sessionData completo:', JSON.stringify(sessionData, null, 2));
+        }
+        
+        // Si hay uid, intentar obtener el nombre real del usuario
+        if (sessionData.uid) {
+          try {
+            const userDoc = await db.collection('users').doc(sessionData.uid).get();
+            if (userDoc.exists) {
+              const userData = userDoc.data();
+              userName = userData.primerNombre || userData.nombreCompleto || userName;
+              console.log('👤 Nombre de usuario obtenido:', userName);
+            }
+          } catch (userError) {
+            // Si no puede obtener info del usuario, usar el fallback
+            console.log('📝 No se pudo obtener info adicional del usuario, usando fallback');
+          }
+        }
+
+        // Solo enviar email si hay email disponible
+        if (!sessionData.email) {
+          console.log('⚠️ Saltando envío de email: no hay email en sessionData');
+        } else {
+          console.log('📧 Iniciando envío de email...');
+          const emailResult = await emailService.sendReloadConfirmation({
+            email: sessionData.email,
+            userName: userName,
+            amount: parseFloat(sessionData.amount),
+            currency: sessionData.currency?.toUpperCase() || 'USD',
+            paymentSessionId: payment_session_id
+          });
+
+          // Log del resultado del email
+          await sessionRef.collection('logs').add({
+            type: 'email:reload_confirmation',
+            payload: {
+              email: sessionData.email,
+              success: emailResult.success,
+              messageId: emailResult.messageId || null,
+              error: emailResult.error || null
+            },
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
+          });
+
+          console.log('📧 Email de confirmación:', emailResult.success ? '✅ Enviado' : '❌ Error');
+        }
+
+      } catch (emailError) {
+        console.error('❌ Error enviando email de confirmación:', emailError);
+        // No fallar la transacción si el email falla
+      }
 
       res.json({
         ok: true,
@@ -489,7 +564,7 @@ router.post('/confirm-and-reload', async (req, res) => {
       // Si no hay token de Marqeta, solo actualizar el estado
       await sessionRef.set({
         status: 'completed_stripe_only',
-        completedAt: new Date()
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
       }, { merge: true });
 
       res.json({
@@ -513,7 +588,7 @@ router.post('/confirm-and-reload', async (req, res) => {
           where: 'payments/confirm-and-reload',
           message: err.message,
           stack: err.stack,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
     } catch (_) {}
     res.status(500).json({ error: err.message });
