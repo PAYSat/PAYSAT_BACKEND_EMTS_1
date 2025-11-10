@@ -77,6 +77,10 @@ router.post('/init', async (req, res) => {
     const sessionId = payment_session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const sessionRef = db.collection('Stripe_Payments_Sessions').doc(sessionId);
 
+    // Guardar movimiento en tabla de moviemientos
+    const movimientoRef = db.collection('PaySat_Movimientos').doc(sessionId);
+    // Guardar tarifa del movimiento
+
     // Convertir amount de centavos a dólares para Firebase con 2 decimales
     const amountInDollars = (amount / 100).toFixed(2);
 
@@ -499,7 +503,7 @@ router.post('/confirm-and-reload', async (req, res) => {
         // Si hay uid, intentar obtener el nombre real del usuario
         if (sessionData.uid) {
           try {
-            const userDoc = await db.collection('users').doc(sessionData.uid).get();
+            const userDoc = await db.collection('PaySat_Users').doc(sessionData.uid).get();
             if (userDoc.exists) {
               const userData = userDoc.data();
               userName = userData.primerNombre || userData.nombreCompleto || userName;

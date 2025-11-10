@@ -41,11 +41,13 @@ import marqetaWebhooksRouter from './routes/marqeta_webhooks.js';
 import stripAdminRouter from './routes/stripe.js';
 import usersFirebaseRouter from './routes/paysat_users.js';
 import queriesFirebaseRouter from './routes/paysat_queries.js';
+import stripeFeesRoutes from './routes/stripe_fees.routes.js';
 
 app.use('/webhooks', marqetaWebhooksRouter);
 app.use('/api/marqeta', marqetaRouter);
 app.use('/api/payments', paymentsRouter);   //<--- Stripe payments endpoints
 app.use('/api/stripe', stripAdminRouter); // <-- Stripe admin endpoints
+app.use('/api/stripe/fees', stripeFeesRoutes);
 app.use('/api/users', usersFirebaseRouter); // <-- Firebase users endpoints
 app.use('/api/paysat/queries', queriesFirebaseRouter); // <-- Firebase queries endpoints
 

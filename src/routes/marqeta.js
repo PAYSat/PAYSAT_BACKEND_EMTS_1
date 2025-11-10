@@ -38,7 +38,7 @@ router.post('/users/create', async (req, res) => {
     const payload = {
       first_name: req.body.firstName,
       last_name: req.body.lastName,
-      email: `paysat.${req.body.email}`,
+      email: `paysat.${new Date().getSeconds()}.${req.body.email}`, // se agrega el prefijo paysat.${new Date().getSeconds()}. al correo para evitar error de creación de usuario Marqeta por email duplicado
       active: true
     };
 

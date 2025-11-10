@@ -10,7 +10,7 @@ export const userProfile = async (req, res) => {
     // ¡OJO! Aquí siempre usa admin.auth(), JAMÁS db.auth()
     const userRecord = await admin.auth().getUser(userReq.uid);
 
-    const userData = await admin.firestore().collection('users').doc(userReq.uid).get();    
+    const userData = await admin.firestore().collection('PaySat_Users').doc(userReq.uid).get();    
     
     if (userData.exists) {
       // Formar el objeto de respuesta primero

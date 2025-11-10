@@ -4,10 +4,71 @@ import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { handleJit } from '../services/jit.js';
 import { emailService } from '../services/send_email.js';
+import { getFeesByCharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
+import { centsToAmount } from '../utils/cents_to_amount.js';
 
 const r = Router();
 
+// Función helper para mapear fees payload
+function mapFeePayload(bt) {
+  if (!bt) return null;
+  return {
+    balanceTransactionId: bt.id,
+    currency: bt.currency,
+    fee_cents: bt.fee,
+    fee: centsToAmount(bt.fee),
+    net_cents: bt.net,
+    net: centsToAmount(bt.net),
+    fee_details: (bt.fee_details || []).map(fd => ({
+      type: fd.type,
+      amount_cents: fd.amount,
+      amount: centsToAmount(fd.amount),
+      description: fd.description
+    }))
+  };
+}
+
+// Función helper para guardar fees en Firebase
+async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, chargeId = null) {
+  try {
+    if (!feeData) {
+      console.log('⚠️ No hay datos de fee disponibles para guardar');
+      return null;
+    }
+
+    // Crear documento con ID único basado en paymentIntent y source
+    const feeDocId = `${paymentIntentId}_${source}`;
+    
+    // Verificar si ya existe
+    const existingFeeDoc = await db.collection('Stripe_Fees').doc(feeDocId).get();
+    if (existingFeeDoc.exists) {
+      console.log('ℹ️ Fee ya registrado para:', feeDocId);
+      return existingFeeDoc.data();
+    }
+
+    const feeDocument = {
+      ...feeData,
+      source,
+      paymentIntentId,
+      chargeId,
+      paysatUID,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await db.collection('Stripe_Fees').doc(feeDocId).set(feeDocument);
+    console.log('💰 Fee guardado exitosamente:', feeDocId);
+    
+    return feeDocument;
+  } catch (error) {
+    console.error('❌ Error guardando fee:', error);
+    return null;
+  }
+}
+
 // Funciones de utilidad para Stripe webhooks
+// COMENTADO: getMarqetaFundingSourceToken no se usa por ahora
+/*
 async function getMarqetaFundingSourceToken() {
   try {
     const fundingSourcesRef = db.collection('Marqeta_FundingSources');
@@ -24,6 +85,7 @@ async function getMarqetaFundingSourceToken() {
     return null;
   }
 }
+*/
 
 async function processMarqetaReload(paymentIntent, sessionData, sessionRef) {
   // console.log('🔄 Iniciando processMarqetaReload');
@@ -45,6 +107,8 @@ async function processMarqetaReload(paymentIntent, sessionData, sessionRef) {
       return null;
     }
 
+    // COMENTADO: GPA orders se ejecutarán en otro lugar
+    /*
     console.log('🔍 Obteniendo funding source token...');
     // Obtener funding source token desde Firebase
     const fundingSourceToken = await getMarqetaFundingSourceToken();
@@ -87,11 +151,18 @@ async function processMarqetaReload(paymentIntent, sessionData, sessionRef) {
       payment_intent_id: paymentIntent.id,
       stripe_amount_cents: paymentIntent.amount,
       marqeta_amount_dollars: gpaOrder.amount,
+      paysatUID: sessionData.paysatUID,
       createdAt: new Date()
     });
     // console.log('✅ GPA order guardado en Firebase exitosamente');
 
     return gpaOrder;
+    */
+
+    // TEMPORALMENTE: Solo marcar como procesado sin hacer GPA order
+    console.log('⚠️ GPA orders comentados - se procesarán en otro lugar');
+    return null;
+
   } catch (error) {
     console.error('❌ Error en recarga Marqeta:', error);
     console.error('📍 Error stack:', error.stack);
@@ -258,6 +329,8 @@ r.post('/stripe', async (req, res) => {
         processed_by: 'payment_intent.succeeded'
       };
 
+      // COMENTADO: gpaOrder ahora siempre será null
+      /*
       if (gpaOrder) {
         updateData.gpa_order_token = gpaOrder.token;
         updateData.gpa_order_amount = gpaOrder.amount;
@@ -270,11 +343,33 @@ r.post('/stripe', async (req, res) => {
       } else {
         console.log('⚠️ No se generó GPA order');
       }
+      */
 
       await sessionRef.set(updateData, { merge: true });
       // console.log('✅ Estado de sesión actualizado');
 
-      // 📧 Enviar email de confirmación de recarga
+      // � Procesar y guardar fees de Stripe
+      try {
+        console.log('💰 Procesando fees para payment_intent:', paymentIntent.id);
+        const { charge, balanceTransaction } = await getFeesByPaymentIntent(paymentIntent.id);
+        
+        if (balanceTransaction) {
+          const feePayload = mapFeePayload(balanceTransaction);
+          await saveFeeToFirebase(
+            feePayload, 
+            sessionData.paysatUID, 
+            'payment_intent',
+            paymentIntent.id,
+            charge ? charge.id : null
+          );
+        } else {
+          console.log('⚠️ Balance transaction no disponible aún para payment_intent:', paymentIntent.id);
+        }
+      } catch (feeError) {
+        console.error('❌ Error procesando fees:', feeError);
+      }
+
+      // �📧 Enviar email de confirmación de recarga
       console.log('🔄 Recarga completada exitosamente, preparando envío de email...');
       
       try {
@@ -300,7 +395,7 @@ r.post('/stripe', async (req, res) => {
         // Si hay paysatUID, intentar obtener el nombre real del usuario
         if (sessionData.paysatUID) {
           try {
-            const userDoc = await db.collection('users').doc(sessionData.paysatUID).get();
+            const userDoc = await db.collection('PaySat_Users').doc(sessionData.paysatUID).get();
             if (userDoc.exists) {
               const userData = userDoc.data();
               userName = userData.primerNombre || userData.nombreCompleto || userName;
@@ -449,13 +544,37 @@ r.post('/stripe', async (req, res) => {
               processed_from: 'charge.succeeded'
             };
 
+            // COMENTADO: gpaOrder ahora siempre será null
+            /*
             if (gpaOrder) {
               updateData.gpa_order_token = gpaOrder.token;
               updateData.gpa_order_amount = gpaOrder.amount;
               updateData.gpa_order_state = gpaOrder.state;
             }
+            */
 
             await sessionRef.set(updateData, { merge: true });
+
+            // 💰 Procesar y guardar fees de Stripe desde charge.succeeded
+            try {
+              console.log('💰 Procesando fees para charge:', charge.id);
+              const { balanceTransaction } = await getFeesByCharge(charge.id);
+              
+              if (balanceTransaction) {
+                const feePayload = mapFeePayload(balanceTransaction);
+                await saveFeeToFirebase(
+                  feePayload, 
+                  sessionData.paysatUID, 
+                  'charge',
+                  paymentIntent.id,
+                  charge.id
+                );
+              } else {
+                console.log('⚠️ Balance transaction no disponible aún para charge:', charge.id);
+              }
+            } catch (feeError) {
+              console.error('❌ Error procesando fees desde charge.succeeded:', feeError);
+            }
 
             // 📧 Enviar email de confirmación desde charge.succeeded
             // console.log('📧 Preparando envío de email desde charge.succeeded...');
@@ -470,7 +589,7 @@ r.post('/stripe', async (req, res) => {
                 // Obtener nombre real del usuario si está disponible
                 if (sessionData.paysatUID) {
                   try {
-                    const userDoc = await db.collection('users').doc(sessionData.paysatUID).get();
+                    const userDoc = await db.collection('PaySat_Users').doc(sessionData.paysatUID).get();
                     if (userDoc.exists) {
                       const userData = userDoc.data();
                       userName = userData.primerNombre || userData.nombreCompleto || userName;
