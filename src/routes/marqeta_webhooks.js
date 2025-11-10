@@ -349,6 +349,9 @@ r.post('/stripe', async (req, res) => {
       await sessionRef.set(updateData, { merge: true });
       // console.log('✅ Estado de sesión actualizado');
 
+      // 💰 Procesar y guardar fees de Stripe + capturar info para email
+      let feeInfo = null; // Variable para almacenar información de fees para el email
+
       // � Procesar y guardar fees de Stripe
       try {
         console.log('💰 Procesando fees para payment_intent:', paymentIntent.id);
@@ -378,6 +381,15 @@ r.post('/stripe', async (req, res) => {
 
           if (movementsResult.success) {
             console.log('✅ Todos los movimientos contables procesados exitosamente');
+            
+            // Capturar información de fees para el email
+            if (movementsResult.fee?.success && movementsResult.fee.data) {
+              feeInfo = {
+                totalFee: parseFloat(movementsResult.fee.data.totalFee),
+                netAmount: parseFloat(movementsResult.fee.data.net)
+              };
+              console.log('📧 Información de fees capturada para email:', feeInfo);
+            }
           } else {
             console.error('⚠️ Algunos movimientos contables fallaron:', movementsResult.errors);
           }
@@ -452,7 +464,12 @@ r.post('/stripe', async (req, res) => {
             userName: userName,
             amount: parseFloat(sessionData.amount),
             currency: sessionData.currency?.toUpperCase() || 'USD',
-            paymentSessionId: sessionDoc.id
+            paymentSessionId: sessionDoc.id,
+            // Incluir información de fees si está disponible
+            ...(feeInfo && {
+              totalFee: feeInfo.totalFee,
+              netAmount: feeInfo.netAmount
+            })
           });
 
           // Log del resultado del email
@@ -592,6 +609,8 @@ r.post('/stripe', async (req, res) => {
             await sessionRef.set(updateData, { merge: true });
 
             // 💰 Procesar y guardar fees de Stripe desde charge.succeeded + Movimientos contables
+            let feeInfoCharge = null; // Variable para almacenar información de fees para el email
+            
             try {
               console.log('💰 Procesando fees para charge:', charge.id);
               const { balanceTransaction } = await getFeesByCharge(charge.id);
@@ -620,6 +639,15 @@ r.post('/stripe', async (req, res) => {
 
                 if (movementsResult.success) {
                   console.log('✅ Todos los movimientos contables procesados exitosamente desde charge.succeeded');
+                  
+                  // Capturar información de fees para el email
+                  if (movementsResult.fee?.success && movementsResult.fee.data) {
+                    feeInfoCharge = {
+                      totalFee: parseFloat(movementsResult.fee.data.totalFee),
+                      netAmount: parseFloat(movementsResult.fee.data.net)
+                    };
+                    console.log('📧 Información de fees capturada para email desde charge.succeeded:', feeInfoCharge);
+                  }
                 } else {
                   console.error('⚠️ Algunos movimientos contables fallaron desde charge.succeeded:', movementsResult.errors);
                 }
@@ -677,7 +705,12 @@ r.post('/stripe', async (req, res) => {
                   userName: userName,
                   amount: parseFloat(sessionData.amount),
                   currency: sessionData.currency?.toUpperCase() || 'USD',
-                  paymentSessionId: sessionDoc.id
+                  paymentSessionId: sessionDoc.id,
+                  // Incluir información de fees si está disponible
+                  ...(feeInfoCharge && {
+                    totalFee: feeInfoCharge.totalFee,
+                    netAmount: feeInfoCharge.netAmount
+                  })
                 });
 
                 // Log del resultado

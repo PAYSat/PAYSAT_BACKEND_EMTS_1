@@ -10,7 +10,9 @@ class EmailService {
    * @param {Object} data - Datos de la recarga
    * @param {string} data.email - Email del usuario
    * @param {string} data.userName - Nombre del usuario
-   * @param {number} data.amount - Monto recargado
+   * @param {number} data.amount - Monto recargado original
+   * @param {number} data.totalFee - Fee total (Stripe + PaySat) - opcional
+   * @param {number} data.netAmount - Monto neto disponible - opcional
    * @param {string} data.paymentSessionId - ID de la sesión de pago
    * @param {string} data.currency - Moneda
    */
@@ -18,7 +20,7 @@ class EmailService {
     try {
       // console.log('📧 Enviando email de confirmación de recarga a:', data.email);
 
-      const { email, userName, amount, paymentSessionId, currency = 'USD' } = data;
+      const { email, userName, amount, totalFee, netAmount, paymentSessionId, currency = 'USD' } = data;
 
       if (!email) {
         // console.log('❌ Email de destino no proporcionado');
@@ -31,6 +33,8 @@ class EmailService {
       const htmlContent = this.generateReloadConfirmationHTML({
         userName,
         amount,
+        totalFee,
+        netAmount,
         currency,
         paymentSessionId,
         date: new Date().toLocaleString('es-ES', { 
@@ -74,8 +78,15 @@ class EmailService {
    * Genera el HTML para el email de confirmación de recarga
    */
   generateReloadConfirmationHTML(data) {
-    // Formatear el monto con 2 decimales
+    // Formatear los montos con 2 decimales
     const formattedAmount = parseFloat(data.amount).toFixed(2);
+    const hasFeeInfo = data.totalFee !== undefined && data.netAmount !== undefined;
+    const formattedTotalFee = hasFeeInfo ? parseFloat(data.totalFee).toFixed(2) : null;
+    const formattedNetAmount = hasFeeInfo ? parseFloat(data.netAmount).toFixed(2) : null;
+    
+    // Determinar qué monto mostrar prominentemente
+    const mainAmount = hasFeeInfo ? formattedNetAmount : formattedAmount;
+    const mainAmountLabel = hasFeeInfo ? 'Monto disponible' : 'Monto recargado';
     
     return `
       <!DOCTYPE html>
@@ -90,9 +101,13 @@ class EmailService {
           .content { padding: 30px; background: #f8f9fa; }
           .success-icon { font-size: 48px; color: #10B981; text-align: center; margin: 20px 0; }
           .amount { font-size: 36px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
+          .amount-label { font-size: 14px; color: #6B7280; text-align: center; margin-top: -15px; }
           .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .fee-breakdown { background: #F3F4F6; padding: 15px; border-radius: 6px; margin: 15px 0; font-size: 14px; }
           .footer { background: #374151; color: white; padding: 20px; text-align: center; font-size: 12px; }
           .button { background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+          .highlight { color: #059669; font-weight: bold; }
+          .fee-line { display: flex; justify-content: space-between; margin: 5px 0; }
         </style>
       </head>
       <body>
@@ -110,17 +125,36 @@ class EmailService {
             
             <p>Tu recarga ha sido procesada exitosamente:</p>
             
-            <div class="amount">$${formattedAmount} ${data.currency}</div>
+            <div class="amount">$${mainAmount} ${data.currency}</div>
+            <div class="amount-label">${mainAmountLabel}</div>
             
             <div class="details">
               <h3>Detalles de la transacción:</h3>
-              <p><strong>Monto:</strong> $${formattedAmount} ${data.currency}</p>
+              <p><strong>Monto original:</strong> $${formattedAmount} ${data.currency}</p>
+              
+              ${hasFeeInfo ? `
+              <div class="fee-breakdown">
+                <p><strong>Desglose de tarifas:</strong></p>
+                <div class="fee-line">
+                  <span>Tarifa total aplicada:</span>
+                  <span> -$${formattedTotalFee} ${data.currency}</span>
+                </div>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #D1D5DB;">
+                <div class="fee-line">
+                  <span class="highlight">Monto disponible en tu cuenta: </span>
+                  <span class="highlight">$${formattedNetAmount} ${data.currency}</span>
+                </div>
+              </div>
+              ` : ''}
+              
               <p><strong>Fecha:</strong> ${data.date}</p>
               <p><strong>ID de sesión:</strong> ${data.paymentSessionId}</p>
               <p><strong>Estado:</strong> Completada ✅</p>
             </div>
             
             <p>Los fondos ya están disponibles en tu cuenta PAYSAT y pueden ser utilizados para realizar pagos.</p>
+            ${hasFeeInfo ? '<p style="font-size: 12px; color: #6B7280;"><em>El fee incluye comisiones de procesamiento de pago y servicio PaySat.</em></p>' : ''}
+            
             <!--
             <div style="text-align: center;">
               <a href="#" class="button">Ver mi cuenta</a>
