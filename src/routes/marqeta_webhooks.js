@@ -5,6 +5,7 @@ import { db } from '../config/firebase.js';
 import { handleJit } from '../services/jit.js';
 import { emailService } from '../services/send_email.js';
 import { getFeesByCharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
+import { processCompleteTransaction } from '../services/movements_service.js';
 import { centsToAmount } from '../utils/cents_to_amount.js';
 
 const r = Router();
@@ -355,6 +356,8 @@ r.post('/stripe', async (req, res) => {
         
         if (balanceTransaction) {
           const feePayload = mapFeePayload(balanceTransaction);
+          
+          // Guardar fee en Stripe_Fees (método original)
           await saveFeeToFirebase(
             feePayload, 
             sessionData.paysatUID, 
@@ -362,11 +365,44 @@ r.post('/stripe', async (req, res) => {
             paymentIntent.id,
             charge ? charge.id : null
           );
+
+          // 📊 Procesar movimientos contables completos
+          console.log('📊 Procesando movimientos contables para PaySat_Movements...');
+          const movementsResult = await processCompleteTransaction(
+            sessionData,
+            paymentIntent.id,
+            charge ? charge.id : null,
+            feePayload,
+            balanceTransaction.id
+          );
+
+          if (movementsResult.success) {
+            console.log('✅ Todos los movimientos contables procesados exitosamente');
+          } else {
+            console.error('⚠️ Algunos movimientos contables fallaron:', movementsResult.errors);
+          }
+
         } else {
           console.log('⚠️ Balance transaction no disponible aún para payment_intent:', paymentIntent.id);
+          
+          // Aún así, procesar el movimiento de recarga sin fees
+          console.log('📊 Procesando solo movimiento de recarga sin fees...');
+          const movementsResult = await processCompleteTransaction(
+            sessionData,
+            paymentIntent.id,
+            null,
+            null,
+            null
+          );
+          
+          if (movementsResult.charge?.success) {
+            console.log('✅ Movimiento de recarga procesado sin fees');
+          } else {
+            console.error('⚠️ Error procesando movimiento de recarga:', movementsResult.errors);
+          }
         }
       } catch (feeError) {
-        console.error('❌ Error procesando fees:', feeError);
+        console.error('❌ Error procesando fees y movimientos:', feeError);
       }
 
       // �📧 Enviar email de confirmación de recarga
@@ -555,13 +591,15 @@ r.post('/stripe', async (req, res) => {
 
             await sessionRef.set(updateData, { merge: true });
 
-            // 💰 Procesar y guardar fees de Stripe desde charge.succeeded
+            // 💰 Procesar y guardar fees de Stripe desde charge.succeeded + Movimientos contables
             try {
               console.log('💰 Procesando fees para charge:', charge.id);
               const { balanceTransaction } = await getFeesByCharge(charge.id);
               
               if (balanceTransaction) {
                 const feePayload = mapFeePayload(balanceTransaction);
+                
+                // Guardar fee en Stripe_Fees (método original)
                 await saveFeeToFirebase(
                   feePayload, 
                   sessionData.paysatUID, 
@@ -569,11 +607,44 @@ r.post('/stripe', async (req, res) => {
                   paymentIntent.id,
                   charge.id
                 );
+
+                // 📊 Procesar movimientos contables completos
+                console.log('📊 Procesando movimientos contables para PaySat_Movements desde charge.succeeded...');
+                const movementsResult = await processCompleteTransaction(
+                  sessionData,
+                  paymentIntent.id,
+                  charge.id,
+                  feePayload,
+                  balanceTransaction.id
+                );
+
+                if (movementsResult.success) {
+                  console.log('✅ Todos los movimientos contables procesados exitosamente desde charge.succeeded');
+                } else {
+                  console.error('⚠️ Algunos movimientos contables fallaron desde charge.succeeded:', movementsResult.errors);
+                }
+
               } else {
                 console.log('⚠️ Balance transaction no disponible aún para charge:', charge.id);
+                
+                // Aún así, procesar el movimiento de recarga sin fees
+                console.log('📊 Procesando solo movimiento de recarga sin fees desde charge.succeeded...');
+                const movementsResult = await processCompleteTransaction(
+                  sessionData,
+                  paymentIntent.id,
+                  charge.id,
+                  null,
+                  null
+                );
+                
+                if (movementsResult.charge?.success) {
+                  console.log('✅ Movimiento de recarga procesado sin fees desde charge.succeeded');
+                } else {
+                  console.error('⚠️ Error procesando movimiento de recarga desde charge.succeeded:', movementsResult.errors);
+                }
               }
             } catch (feeError) {
-              console.error('❌ Error procesando fees desde charge.succeeded:', feeError);
+              console.error('❌ Error procesando fees y movimientos desde charge.succeeded:', feeError);
             }
 
             // 📧 Enviar email de confirmación desde charge.succeeded
