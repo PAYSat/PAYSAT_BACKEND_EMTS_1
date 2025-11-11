@@ -178,7 +178,6 @@ router.get('/transactions/balance/:paysatUID', async (_req, res) => {
     if (movementsSnapshot.empty) {
       return res.json({
         ok: true,
-        saldo: 0.00,
         data: [],
         message: 'No se encontraron movimientos para este usuario'
       });
@@ -209,11 +208,141 @@ router.get('/transactions/balance/:paysatUID', async (_req, res) => {
     console.log(`✅ Saldo total calculado: $${saldoTotal}`);
     res.json({
       ok: true,
-      saldo: saldoTotal
+      data: {
+        saldo: saldoTotal
+      }      
     });
 
   } catch (error) {
     console.error('❌ Error al obtener el saldo:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
+router.get('/cards/balance/:paysatUID', async (_req, res) => {
+  let { paysatUID } = _req.params;
+
+  try {
+    // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
+
+    // Limpiar el paysatUID de caracteres no deseados al inicio
+    if (paysatUID.startsWith(':')) {
+      paysatUID = paysatUID.substring(1);
+    //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
+    }
+
+    // Validar que paysatUID no esté vacío después de la limpieza
+    if (!paysatUID || paysatUID.trim() === '') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'paysatUID es requerido y no puede estar vacío' 
+      });
+    }
+
+    // Obtener los movimientos del usuario desde PaySat_Movements
+    const movementsSnapshot = await db.collection('PaySat_Card_Movements')
+      .where('paysatUID', '==', paysatUID)
+      .get();
+
+    console.log('📊 Movimientos encontrados:', movementsSnapshot.size);
+
+    if (movementsSnapshot.empty) {
+      return res.json({
+        ok: true,
+        data: [],
+        message: 'No se encontraron movimientos para este usuario'
+      });
+    }
+
+    // Procesar los movimientos y calcular el saldo
+    let saldoTotal = 0.00;
+
+    movementsSnapshot.forEach(doc => {
+      const data = doc.data();
+      const typeMovement = data.typeMovement;
+      const monto = parseFloat(data.amount) || 0.00;
+      
+      // Calcular saldo según el tipo de movimiento
+      if (typeMovement === 'deposit' || typeMovement === 'charge') {
+        saldoTotal += monto; // Sumar depósitos y recargas
+      } else if (typeMovement === 'buy') {
+        saldoTotal -= monto; // Restar fees y compras
+      } else if (typeMovement === 'fee') {
+        saldoTotal -= parseFloat(data.totalFee);        // Aquí puedes manejar otros tipos de movimientos si es necesario
+      }
+
+    });
+
+    
+    const cardData = await db.collection('Marqeta_Cards')
+      .where('paysatUID', '==', paysatUID)
+      .get();
+
+
+    // Redondear saldo a 2 decimales
+    saldoTotal = parseFloat(saldoTotal.toFixed(2));
+    console.log(`✅ Saldo total calculado: $${saldoTotal}`);
+    res.json({
+      ok: true,
+      nameCard: cardData.empty ? null : cardData.docs[0].data().nameCard || '',
+      cardNumber: cardData.empty ? null : cardData.docs[0].data().cardNumber || '',
+      data: {
+        saldo: saldoTotal
+      }      
+    });
+
+  } catch (error) {
+    console.error('❌ Error al obtener el saldo:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
+router.get('/cards/check/:paysatUID', async (_req, res) => {
+  let { paysatUID } = _req.params;
+
+  try {
+    // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
+
+    // Limpiar el paysatUID de caracteres no deseados al inicio
+    if (paysatUID.startsWith(':')) {
+      paysatUID = paysatUID.substring(1);
+    //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
+    }
+
+    // Validar que paysatUID no esté vacío después de la limpieza
+    if (!paysatUID || paysatUID.trim() === '') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'paysatUID es requerido y no puede estar vacío' 
+      });
+    }
+
+    // Contar cuantas tarjetas virtuales del usuario desde Marqeta_Cards
+    const cardsSnapshot = await db.collection('Marqeta_Cards')
+      .where('paysatUID', '==', paysatUID)
+      .count()
+      .get();
+
+    const cardCount = cardsSnapshot.data().count;
+    console.log('📊 Tarjetas encontradas:', cardCount);
+
+    res.json({
+      ok: true,
+      data: {
+        cardCount: cardCount
+      }      
+    });
+
+  } catch (error) {
+    console.error('❌ Error al obtener el número de tarjetas:', error);
     res.status(500).json({ 
       ok: false, 
       error: 'Internal server error',

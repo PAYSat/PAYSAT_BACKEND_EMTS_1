@@ -137,7 +137,7 @@ class EmailService {
                 <p><strong>Desglose de tarifas:</strong></p>
                 <div class="fee-line">
                   <span>Tarifa total aplicada:</span>
-                  <span> -$${formattedTotalFee} ${data.currency}</span>
+                  <span>&nbsp;-$${formattedTotalFee} ${data.currency}</span>
                 </div>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #D1D5DB;">
                 <div class="fee-line">

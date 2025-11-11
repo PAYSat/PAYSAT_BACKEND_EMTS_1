@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { marqeta } from '../config/marqeta.js';
+import { db } from '../config/firebase.js';
 
 // ---------- USERS ----------
 export async function createUser({ first_name, last_name, email, external_id }) {
@@ -17,22 +18,32 @@ export async function createUser({ first_name, last_name, email, external_id }) 
 
 // ---------- USER TOKEN ----------
 export async function getMarqetaUserToken(paysatUID) {
+  // console.log('🔍 Buscando usuario Marqeta para paysatUID:', paysatUID);
+  
   // Buscar el usuario en Marqeta por external_id (que es paysatUID)
   const cardProductDoc = await db.collection('Marqeta_Users').where('paysatUID', '==', paysatUID).limit(1).get();
   if (!cardProductDoc.empty) {
-    return cardProductDoc.docs[0].data().marqetaUser["token"] || "";
+    const userToken = cardProductDoc.docs[0].data().marqetaUser["token"] || "";
+    // console.log('✅ Usuario Marqeta encontrado, token:', userToken);
+    return userToken;
   } else {
+    console.error('❌ Usuario Marqeta no encontrado para paysatUID:', paysatUID);
     throw new Error(`Marqeta user not found for paysatUID: ${paysatUID}`);
   }
 }
 
 // ---------- CARD PRODUCT TOKEN ----------
 export async function getCardProductToken() {
+  // console.log('🔍 Buscando Card Product Token...');
+  
   // Obtener el primer documento de CardProducts
   const cardProductDoc = await db.collection('Marqeta_CardProducts').limit(1).get();
   if (!cardProductDoc.empty) {
-    return cardProductDoc.docs[0].data().marqeta_card_product_data["token"] || "";
+    const token = cardProductDoc.docs[0].data().marqeta_card_product_data["token"] || "";
+    // console.log('✅ Card Product Token encontrado:', token);
+    return token;
   } else {
+    console.error('❌ No se encontraron Card Products en Firestore');
     throw new Error('No Marqeta Card Products found in Firestore');
   }
 }

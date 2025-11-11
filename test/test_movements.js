@@ -3,10 +3,15 @@ import {
   createFeeMovement, 
   createPaySatDepositMovement,
   processCompleteTransaction,
-  PAYSAT_MAIN_ACCOUNT,
   PAYSAT_FEE_CENTS,
   PAYSAT_FEE_AMOUNT 
 } from '../src/services/movements_service.js';
+
+const PAYSAT_MAIN_ACCOUNT = {
+  paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
+  numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
+  email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL
+};
 
 // Función de prueba para verificar el servicio
 async function testMovementsService() {

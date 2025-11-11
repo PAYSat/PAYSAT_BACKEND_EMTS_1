@@ -67,6 +67,43 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, ch
   }
 }
 
+// Función helper para verificar si los fees ya fueron procesados
+async function checkIfFeeProcessed(paymentIntentId, chargeId) {
+  try {
+    // Verificar en PaySat_Movements si existe un fee para este payment_intent
+    const feeQuery = await db.collection('PaySat_Movements')
+      .where('typeMovement', '==', 'fee')
+      .where('payment_intent_id', '==', paymentIntentId)
+      .limit(1)
+      .get();
+    
+    if (!feeQuery.empty) {
+      console.log('✅ Fee ya procesado para payment_intent:', paymentIntentId);
+      return true;
+    }
+    
+    // También verificar por charge_id si está disponible
+    if (chargeId) {
+      const feeByChargeQuery = await db.collection('PaySat_Movements')
+        .where('typeMovement', '==', 'fee')
+        .where('charge_id', '==', chargeId)
+        .limit(1)
+        .get();
+      
+      if (!feeByChargeQuery.empty) {
+        console.log('✅ Fee ya procesado para charge:', chargeId);
+        return true;
+      }
+    }
+    
+    console.log('📄 Fee no procesado aún para payment_intent:', paymentIntentId);
+    return false;
+  } catch (error) {
+    console.error('❌ Error verificando si fee fue procesado:', error);
+    return false; // En caso de error, asumir que no fue procesado
+  }
+}
+
 // Funciones de utilidad para Stripe webhooks
 // COMENTADO: getMarqetaFundingSourceToken no se usa por ahora
 /*
@@ -557,20 +594,43 @@ r.post('/stripe', async (req, res) => {
               processing_event_type: currentSessionData.processing_event_type
             });
 
-            // Verificar si ya se procesó
-            if (currentSessionData.status === 'completed' || currentSessionData.webhook_processed || currentSessionData.webhook_processing) {
-              console.log('⚠️ Pago ya procesado para session desde charge.succeeded:', sessionDoc.id, 'Status:', currentSessionData.status, 'Webhook procesado:', currentSessionData.webhook_processed, 'En proceso:', currentSessionData.webhook_processing);
-              return res.json({ received: true, message: 'Already processed from charge.succeeded' });
+            // Verificar si ya se procesó - permitir procesamiento de fees si solo se procesó la recarga
+            const feeAlreadyProcessed = await checkIfFeeProcessed(paymentIntent.id, charge.id);
+            
+            if (currentSessionData.webhook_processing) {
+              console.log('⚠️ Pago en procesamiento para session desde charge.succeeded:', sessionDoc.id, 'En proceso por:', currentSessionData.processing_event_type);
+              return res.json({ received: true, message: 'Currently processing from charge.succeeded' });
+            }
+            
+            if (currentSessionData.status === 'completed' && currentSessionData.webhook_processed && feeAlreadyProcessed) {
+              console.log('⚠️ Pago y fees ya procesados para session desde charge.succeeded:', sessionDoc.id);
+              return res.json({ received: true, message: 'Already fully processed from charge.succeeded' });
+            }
+            
+            // Si la recarga ya fue procesada pero no los fees, continuar solo con fees
+            const processOnlyFees = currentSessionData.status === 'completed' && !feeAlreadyProcessed;
+            if (processOnlyFees) {
+              console.log('🔄 Procesando solo fees para session ya completada:', sessionDoc.id);
             }
 
-            // MARCAR INMEDIATAMENTE COMO PROCESÁNDOSE para evitar duplicados
-            console.log('🔒 Marcando sesión como en procesamiento desde charge.succeeded');
-            await sessionRef.set({
-              webhook_processing: true,
-              webhook_processing_at: new Date(),
-              processing_event_type: 'charge.succeeded'
-            }, { merge: true });
-            console.log('✅ Sesión marcada como en procesamiento desde charge.succeeded');
+            // MARCAR INMEDIATAMENTE COMO PROCESÁNDOSE para evitar duplicados (solo si no está ya procesado)
+            if (!processOnlyFees) {
+              console.log('🔒 Marcando sesión como en procesamiento desde charge.succeeded');
+              await sessionRef.set({
+                webhook_processing: true,
+                webhook_processing_at: new Date(),
+                processing_event_type: 'charge.succeeded'
+              }, { merge: true });
+              console.log('✅ Sesión marcada como en procesamiento desde charge.succeeded');
+            } else {
+              console.log('🔒 Marcando procesamiento de fees únicamente desde charge.succeeded');
+              await sessionRef.set({
+                fee_processing: true,
+                fee_processing_at: new Date(),
+                fee_processing_event: 'charge.succeeded'
+              }, { merge: true });
+              console.log('✅ Procesamiento de fees marcado desde charge.succeeded');
+            }
 
             // Log del evento webhook
             await sessionRef.collection('logs').add({
@@ -584,29 +644,25 @@ r.post('/stripe', async (req, res) => {
               createdAt: new Date(),
             });
 
-            // Procesar recarga automática a Marqeta
-            console.log('🚀 Iniciando processMarqetaReload desde charge.succeeded...');
-            const gpaOrder = await processMarqetaReload(paymentIntent, sessionData, sessionRef);
+            // Procesar recarga automática a Marqeta (solo si no está ya procesado)
+            let gpaOrder = null;
+            if (!processOnlyFees) {
+              console.log('🚀 Iniciando processMarqetaReload desde charge.succeeded...');
+              gpaOrder = await processMarqetaReload(paymentIntent, sessionData, sessionRef);
+              
+              // Actualizar el estado de la sesión
+              const updateData = {
+                status: 'completed',
+                completedAt: new Date(),
+                webhook_processed: true,
+                webhook_processing: false, // Limpiar flag de procesamiento
+                processed_from: 'charge.succeeded'
+              };
 
-            // Actualizar el estado de la sesión
-            const updateData = {
-              status: 'completed',
-              completedAt: new Date(),
-              webhook_processed: true,
-              webhook_processing: false, // Limpiar flag de procesamiento
-              processed_from: 'charge.succeeded'
-            };
-
-            // COMENTADO: gpaOrder ahora siempre será null
-            /*
-            if (gpaOrder) {
-              updateData.gpa_order_token = gpaOrder.token;
-              updateData.gpa_order_amount = gpaOrder.amount;
-              updateData.gpa_order_state = gpaOrder.state;
+              await sessionRef.set(updateData, { merge: true });
+            } else {
+              console.log('🔄 Saltando processMarqetaReload - solo procesando fees');
             }
-            */
-
-            await sessionRef.set(updateData, { merge: true });
 
             // 💰 Procesar y guardar fees de Stripe desde charge.succeeded + Movimientos contables
             let feeInfoCharge = null; // Variable para almacenar información de fees para el email
@@ -627,18 +683,44 @@ r.post('/stripe', async (req, res) => {
                   charge.id
                 );
 
-                // 📊 Procesar movimientos contables completos
+                // 📊 Procesar movimientos contables 
                 console.log('📊 Procesando movimientos contables para PaySat_Movements desde charge.succeeded...');
-                const movementsResult = await processCompleteTransaction(
-                  sessionData,
-                  paymentIntent.id,
-                  charge.id,
-                  feePayload,
-                  balanceTransaction.id
-                );
+                
+                let movementsResult;
+                if (processOnlyFees) {
+                  // Solo procesar los fees si la recarga ya existe
+                  console.log('🔄 Procesando solo movimiento de fees...');
+                  movementsResult = await processCompleteTransaction(
+                    sessionData,
+                    paymentIntent.id,
+                    charge.id,
+                    feePayload,
+                    balanceTransaction.id,
+                    { onlyFees: true } // Flag para indicar que solo procese fees
+                  );
+                } else {
+                  // Procesar todo (recarga + fees)
+                  movementsResult = await processCompleteTransaction(
+                    sessionData,
+                    paymentIntent.id,
+                    charge.id,
+                    feePayload,
+                    balanceTransaction.id
+                  );
+                }
 
                 if (movementsResult.success) {
                   console.log('✅ Todos los movimientos contables procesados exitosamente desde charge.succeeded');
+                  
+                  // Limpiar flag de procesamiento de fees si se usó
+                  if (processOnlyFees) {
+                    await sessionRef.set({
+                      fee_processing: false,
+                      fee_processed: true,
+                      fee_processed_at: new Date()
+                    }, { merge: true });
+                    console.log('✅ Flag de procesamiento de fees limpiado');
+                  }
                   
                   // Capturar información de fees para el email
                   if (movementsResult.fee?.success && movementsResult.fee.data) {
@@ -650,6 +732,16 @@ r.post('/stripe', async (req, res) => {
                   }
                 } else {
                   console.error('⚠️ Algunos movimientos contables fallaron desde charge.succeeded:', movementsResult.errors);
+                  
+                  // Limpiar flag de procesamiento en caso de error
+                  if (processOnlyFees) {
+                    await sessionRef.set({
+                      fee_processing: false,
+                      fee_error: true,
+                      fee_error_at: new Date(),
+                      fee_error_details: movementsResult.errors
+                    }, { merge: true });
+                  }
                 }
 
               } else {

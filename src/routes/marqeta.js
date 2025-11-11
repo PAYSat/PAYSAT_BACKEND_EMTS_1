@@ -3,8 +3,12 @@ import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { getMarqetaUserToken, getCardProductToken } from '../services/marqeta.js';
 import * as simulations from '../services/simulations.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
+
+// Función helper para convertir a centavos
+const toCents = (amount) => Math.round(parseFloat(amount) * 100);
 
 /**
  * Crea un usuario en Marqeta y lo guarda en Firebase.
@@ -105,12 +109,12 @@ router.post('/cardproducts/physical', async (req, res) => {
  * Crea un Card Products en Marqeta y lo guarda en Firebase.
  */
 router.post('/cardproducts/virtual', async (req, res) => {
-  const fecha = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const fecha = new Date();
   // console.log('Fecha actual:', fecha);
   try {
     const payload = {
       name: "Demo Product - Virtual",
-      start_date: fecha.split(' ')[0], // Formato YYYY-MM-DD
+      start_date: fecha.toISOString().split('T')[0], // Formato YYYY-MM-DD
       config: {
         card_life_cycle: {
           activate_upon_issue: req.body.activate_upon_issue || true
@@ -143,11 +147,24 @@ router.post('/cardproducts/virtual', async (req, res) => {
  */
 router.post('/cards/virtual', async (req, res) => {
   try {
+    // console.log('🚀 Iniciando creación de tarjeta virtual para:', req.body.paysatUID);
+    
     // Obtener marqeta user token
+    // console.log('📝 Obteniendo marqeta user token...');
     const marqetaUserToken = await getMarqetaUserToken(req.body.paysatUID);
+    // console.log('✅ Marqeta user token obtenido:', marqetaUserToken);
 
     // Obtener card product token
+    // console.log('📝 Obteniendo card product token...');
     const cardProductToken = await getCardProductToken();
+    // console.log('✅ Card product token obtenido:', cardProductToken);
+
+    // Obtener datos de usuario de Firestore
+    const userDoc = await db.collection('PaySat_Users').doc(req.body.paysatUID).get();
+    if (!userDoc.exists) {
+      throw new Error(`Usuario no encontrado: ${req.body.paysatUID}`);
+    }
+    const userData = userDoc.data();
 
     const payload = {
       "user_token": marqetaUserToken,
@@ -155,24 +172,113 @@ router.post('/cards/virtual', async (req, res) => {
       "expedite": false
     };
 
+    // console.log('📤 Creando tarjeta en Marqeta con payload:', payload);
     const { data } = await marqeta.post('/cards', payload);
+    // console.log('✅ Tarjeta creada en Marqeta:', data.token);
+    
     // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_fourouter.
+    // console.log('💾 Guardando tarjeta en Firebase...');
     await db.collection('Marqeta_Cards').doc(data.token).set({ 
       card_data: data,
       paysatUID: req.body.paysatUID,
-      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') 
+      nameCard: `${userData.primerNombre || 'Usuario'} ${userData.apellidos || ''}`.trim(),
+      createdAt: new Date() 
     });
+    // console.log('✅ Tarjeta guardada en Firebase');
+
+    // Guardar en firestore: PaySat_Movements el movimiento de compra de la tarjeta virtual y el depósito por el mismo valor a la cuenta de PAYSAT
+    try {
+      // console.log('📊 Registrando movimientos contables para activación de tarjeta virtual...');
+      
+      // Obtener información del usuario
+      const userDoc = await db.collection('PaySat_Users').doc(req.body.paysatUID).get();
+      if (!userDoc.exists) {
+        throw new Error(`Usuario no encontrado: ${req.body.paysatUID}`);
+      }
+      
+      const userData = userDoc.data();
+      const userEmail = userData.correo || 'email@not.found';
+      const userAccountNumber = userData.numeroCuentaPAYSAT;
+      
+      if (!userAccountNumber) {
+        throw new Error(`numeroCuentaPAYSAT no encontrado para usuario: ${req.body.paysatUID}`);
+      }
+
+      // 1. Registro de compra de la tarjeta virtual por el usuario
+      const buyUuid = uuidv4();
+      const buyDocId = `buy_${buyUuid}`;
+      const cardCost = parseFloat(req.body.cardCost || 0);
+      const cardCostCents = toCents(cardCost);
+      
+      const buyMovement = {
+        typeMovement: "buy",
+        amount: cardCost.toFixed(2),
+        amount_cents: cardCostCents,
+        currency: "USD",
+        paysatUID: req.body.paysatUID,
+        email: userEmail,
+        numeroCuentaPAYSAT: userAccountNumber,
+        from: "Emission_PAYSAT_Virtual_Card",
+        description: "Emission_PAYSAT_Virtual_Card",
+        createdAt: new Date(),
+        
+        // Información adicional de la tarjeta
+        card_token: data.token,
+        card_last_four: data.last_four
+      };
+
+      await db.collection('PaySat_Movements').doc(buyDocId).set(buyMovement);
+      // console.log('✅ Movimiento de compra registrado:', buyDocId);
+
+      // 2. Registro de depósito a la cuenta principal de PAYSAT
+      const depositUuid = uuidv4();
+      const depositDocId = `deposit_${depositUuid}`;
+      
+      const depositMovement = {
+        typeMovement: "deposit",
+        amount: cardCost.toFixed(2),
+        amount_cents: cardCostCents,
+        currency: "USD",
+        paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
+        email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
+        numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
+        from: buyDocId,
+        description: `Emission_PAYSAT_Virtual_Card usr: ${req.body.paysatUID}`,
+        createdAt: new Date(),
+        
+        // Información adicional
+        card_token: data.token,
+        origin_user: req.body.paysatUID
+      };
+
+      await db.collection('PaySat_Movements').doc(depositDocId).set(depositMovement);
+      // console.log('✅ Depósito a cuenta PaySat registrado:', depositDocId);
+      
+      // console.log('✅ Movimientos contables para activación de tarjeta completados exitosamente');
+      
+    } catch (movementError) {
+      console.error('❌ Error registrando movimientos contables para tarjeta virtual:', movementError);
+      // No fallar la respuesta por error en movimientos, pero logear
+    }
+    
 
     res.json({
       ok: true,
-      card_token:
-      data.token,
-      last_four: data.last_four,
-      state: data.state,
-      paysatUID: req.body.paysatUID
+      data: {
+        card_token: data.token,
+        last_four: data.last_four,
+        state: data.state,
+        paysatUID: req.body.paysatUID
+      }
     });
 
   } catch (e) {
+    console.error('❌ Error completo en /cards/virtual:', e);
+    console.error('❌ Error message:', e.message);
+    if (e.response) {
+      console.error('❌ Error response data:', e.response.data);
+      console.error('❌ Error response status:', e.response.status);
+    }
     res.status(500).json({
       ok: false,
       error: e?.response?.data || e.message
@@ -237,7 +343,7 @@ router.post('/fundingsources/programgateway', async (req, res) => {
     };
 
     const { data } = await marqeta.post('/fundingsources/programgateway', payload);
-    await db.collection('Marqeta_FundingSources').doc(data.token).set({ marqeta_funding_source_data: data, createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') });
+    await db.collection('Marqeta_FundingSources').doc(data.token).set({ marqeta_funding_source_data: data, createdAt: new Date() });
 
     res.json({
       ok: true,

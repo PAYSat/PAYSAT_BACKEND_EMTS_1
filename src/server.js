@@ -48,7 +48,7 @@ app.use('/api/marqeta', marqetaRouter);
 app.use('/api/payments', paymentsRouter);   //<--- Stripe payments endpoints
 app.use('/api/stripe', stripAdminRouter); // <-- Stripe admin endpoints
 app.use('/api/stripe/fees', stripeFeesRoutes);
-app.use('/api/users', usersFirebaseRouter); // <-- Firebase users endpoints
+app.use('/api/paysat/users', usersFirebaseRouter); // <-- Firebase users endpoints
 app.use('/api/paysat/queries', queriesFirebaseRouter); // <-- Firebase queries endpoints
 
 // ====== Webhooks (sin bearer; verificación por firma propia) ======

@@ -2,13 +2,6 @@ import { db } from '../config/firebase.js';
 import { v4 as uuidv4 } from 'uuid';
 import { centsToAmount } from '../utils/cents_to_amount.js';
 
-// Constantes para la cuenta principal de PaySat
-const PAYSAT_MAIN_ACCOUNT = {
-  paysatUID: "q4rWTMkfhqdDdu08foZrghiKsJ03",
-  numeroCuentaPAYSAT: "JS2061771",
-  email: "paysat.account@paysatmoney.com"
-};
-
 // Fee estándar de PaySat en centavos
 const PAYSAT_FEE_CENTS = 100; // 1.00 USD
 const PAYSAT_FEE_AMOUNT = "1.00";
@@ -42,11 +35,18 @@ async function createChargeMovement(sessionData, paymentIntentId, chargeId) {
   try {
     console.log('💳 Creando movimiento de recarga...');
     
-    // Obtener el numeroCuentaPAYSAT del usuario
-    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
-    
     // Crear el documento con prefijo "charge_"
     const chargeDocId = `charge_${chargeId || paymentIntentId}`;
+    
+    // Verificar si ya existe para evitar duplicados
+    const existingCharge = await db.collection('PaySat_Movements').doc(chargeDocId).get();
+    if (existingCharge.exists) {
+      console.log('ℹ️ Movimiento de recarga ya existe:', chargeDocId);
+      return { success: true, documentId: chargeDocId, data: existingCharge.data(), skipped: true };
+    }
+    
+    // Obtener el numeroCuentaPAYSAT del usuario
+    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
     
     const chargeMovement = {
       // Información del pago
@@ -79,11 +79,18 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
   try {
     console.log('💰 Creando movimiento de fee...');
     
-    // Obtener el numeroCuentaPAYSAT del usuario
-    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
-    
     // Crear el documento con prefijo "fee_"
     const feeDocId = `fee_${balanceTransactionId}`;
+    
+    // Verificar si ya existe para evitar duplicados
+    const existingFee = await db.collection('PaySat_Movements').doc(feeDocId).get();
+    if (existingFee.exists) {
+      console.log('ℹ️ Movimiento de fee ya existe:', feeDocId);
+      return { success: true, documentId: feeDocId, data: existingFee.data(), skipped: true };
+    }
+    
+    // Obtener el numeroCuentaPAYSAT del usuario
+    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
     
     // Calcular el fee total (Stripe + PaySat)
     const stripeFee_cents = feeData.fee_cents;
@@ -141,14 +148,28 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     const depositId = uuidv4();
     const depositDocId = `deposit_${depositId}`;
     
+    // Verificar si ya existe un depósito para este balanceTransactionId
+    const existingDepositQuery = await db.collection('PaySat_Movements')
+      .where('typeMovement', '==', 'deposit')
+      .where('from', '==', balanceTransactionId)
+      .where('description', '==', 'fee')
+      .limit(1)
+      .get();
+    
+    if (!existingDepositQuery.empty) {
+      const existingDeposit = existingDepositQuery.docs[0];
+      console.log('ℹ️ Depósito PaySat ya existe para balanceTransactionId:', balanceTransactionId);
+      return { success: true, documentId: existingDeposit.id, data: existingDeposit.data(), skipped: true };
+    }
+    
     const depositMovement = {
       typeMovement: "deposit",
       amount: PAYSAT_FEE_AMOUNT,
       amount_cents: PAYSAT_FEE_CENTS,
       currency: "USD",
-      paysatUID: PAYSAT_MAIN_ACCOUNT.paysatUID,
-      email: PAYSAT_MAIN_ACCOUNT.email,
-      numeroCuentaPAYSAT: PAYSAT_MAIN_ACCOUNT.numeroCuentaPAYSAT,
+      paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
+      email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
+      numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
       from: balanceTransactionId,
       description: "fee",
       
@@ -170,8 +191,10 @@ async function createPaySatDepositMovement(balanceTransactionId) {
 /**
  * Procesa todos los movimientos contables para una transacción completa
  */
-async function processCompleteTransaction(sessionData, paymentIntentId, chargeId, feeData, balanceTransactionId) {
+async function processCompleteTransaction(sessionData, paymentIntentId, chargeId, feeData, balanceTransactionId, options = {}) {
   console.log('📊 Procesando movimientos contables completos...');
+  
+  const { onlyFees = false } = options;
   
   const results = {
     charge: null,
@@ -182,14 +205,32 @@ async function processCompleteTransaction(sessionData, paymentIntentId, chargeId
   };
 
   try {
-    // 1. Crear movimiento de recarga
-    console.log('1️⃣ Procesando movimiento de recarga...');
-    const chargeResult = await createChargeMovement(sessionData, paymentIntentId, chargeId);
-    results.charge = chargeResult;
-    
-    if (!chargeResult.success) {
-      results.errors.push(`Charge movement error: ${chargeResult.error}`);
-      results.success = false;
+    // 1. Crear movimiento de recarga (solo si no es onlyFees)
+    if (!onlyFees) {
+      console.log('1️⃣ Procesando movimiento de recarga...');
+      const chargeResult = await createChargeMovement(sessionData, paymentIntentId, chargeId);
+      results.charge = chargeResult;
+      
+      if (!chargeResult.success) {
+        results.errors.push(`Charge movement error: ${chargeResult.error}`);
+        results.success = false;
+      }
+    } else {
+      console.log('1️⃣ Saltando movimiento de recarga (onlyFees=true)...');
+      
+      // Verificar que existe el movimiento de recarga
+      const chargeDocId = `charge_${chargeId || paymentIntentId}`;
+      const existingCharge = await db.collection('PaySat_Movements').doc(chargeDocId).get();
+      
+      if (!existingCharge.exists) {
+        console.error('❌ No se encontró movimiento de recarga existente:', chargeDocId);
+        results.errors.push('No existing charge movement found for fees processing');
+        results.success = false;
+        return results;
+      } else {
+        console.log('✅ Movimiento de recarga existente confirmado:', chargeDocId);
+        results.charge = { success: true, documentId: chargeDocId, data: existingCharge.data(), skipped: true };
+      }
     }
 
     // 2. Crear movimiento de fee (solo si hay datos de fee)
@@ -240,7 +281,7 @@ export {
   createPaySatDepositMovement,
   processCompleteTransaction,
   getUserAccountNumber,
-  PAYSAT_MAIN_ACCOUNT,
   PAYSAT_FEE_CENTS,
   PAYSAT_FEE_AMOUNT
 };
+
