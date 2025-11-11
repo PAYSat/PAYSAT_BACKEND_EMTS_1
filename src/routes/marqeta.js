@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
+import { getMarqetaUserToken, getCardProductToken } from '../services/marqeta.js';
 import * as simulations from '../services/simulations.js';
 
 const router = Router();
@@ -142,22 +143,33 @@ router.post('/cardproducts/virtual', async (req, res) => {
  */
 router.post('/cards/virtual', async (req, res) => {
   try {
+    // Obtener marqeta user token
+    const marqetaUserToken = await getMarqetaUserToken(req.body.paysatUID);
+
+    // Obtener card product token
+    const cardProductToken = await getCardProductToken();
+
     const payload = {
-      "user_token": req.body.user_token,
-      "card_product_token": req.body.card_product_token,
-      "expedite": req.body.expedite || false
+      "user_token": marqetaUserToken,
+      "card_product_token": cardProductToken,
+      "expedite": false
     };
 
     const { data } = await marqeta.post('/cards', payload);
     // OJO: no devolvemos PAN ni CVV por PCI; solo token/last_fourouter.
-    await db.collection('Marqeta_Cards').doc(data.token).set({ card_data: data, createdAt: new Date() });
+    await db.collection('Marqeta_Cards').doc(data.token).set({ 
+      card_data: data,
+      paysatUID: req.body.paysatUID,
+      createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') 
+    });
 
     res.json({
       ok: true,
       card_token:
       data.token,
       last_four: data.last_four,
-      state: data.state
+      state: data.state,
+      paysatUID: req.body.paysatUID
     });
 
   } catch (e) {
