@@ -57,7 +57,7 @@ router.post('/init', async (req, res) => {
     uid,
     email,
     amount,
-    currency = 'usd',
+    currency = 'USD',
     marqeta_user_token = '',
     paysat_uid = '',
     payment_session_id

@@ -16,38 +16,6 @@ export async function createUser({ first_name, last_name, email, external_id }) 
   return { request: body, response: data };
 }
 
-// ---------- USER TOKEN ----------
-export async function getMarqetaUserToken(paysatUID) {
-  // console.log('🔍 Buscando usuario Marqeta para paysatUID:', paysatUID);
-  
-  // Buscar el usuario en Marqeta por external_id (que es paysatUID)
-  const cardProductDoc = await db.collection('Marqeta_Users').where('paysatUID', '==', paysatUID).limit(1).get();
-  if (!cardProductDoc.empty) {
-    const userToken = cardProductDoc.docs[0].data().marqetaUser["token"] || "";
-    // console.log('✅ Usuario Marqeta encontrado, token:', userToken);
-    return userToken;
-  } else {
-    console.error('❌ Usuario Marqeta no encontrado para paysatUID:', paysatUID);
-    throw new Error(`Marqeta user not found for paysatUID: ${paysatUID}`);
-  }
-}
-
-// ---------- CARD PRODUCT TOKEN ----------
-export async function getCardProductToken() {
-  // console.log('🔍 Buscando Card Product Token...');
-  
-  // Obtener el primer documento de CardProducts
-  const cardProductDoc = await db.collection('Marqeta_CardProducts').limit(1).get();
-  if (!cardProductDoc.empty) {
-    const token = cardProductDoc.docs[0].data().marqeta_card_product_data["token"] || "";
-    // console.log('✅ Card Product Token encontrado:', token);
-    return token;
-  } else {
-    console.error('❌ No se encontraron Card Products en Firestore');
-    throw new Error('No Marqeta Card Products found in Firestore');
-  }
-}
-
 // ---------- CARDS (opcional) ----------
 export async function createCard({ user_token, card_product_token }) {
   const body = {
@@ -62,14 +30,12 @@ export async function createCard({ user_token, card_product_token }) {
 }
 
 // ---------- GPA TOP-UP ----------
-export async function createGPAOrder({ user_token, amount, currency_code = 'USD', memo, tags }) {
+export async function createGPAOrder({ user_token, amount, currency_code = 'USD', funding_source_token }) {
   const body = {
     user_token,
     amount: Number(amount),
     currency_code,
-    funding_source_token: 'sandbox_program_funding',
-    memo,
-    tags
+    funding_source_token
   };
   const { data } = await marqeta.post('/gpaorders', body);
   return { request: body, response: data };

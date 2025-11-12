@@ -23,21 +23,21 @@ router.get('/transactions', async (req, res) => {
   }
 });
 
-router.get('/charges', async (req, res) => {
+router.get('/recharges', async (req, res) => {
   try {
     const limit = Number(req.query.limit || 10);
-    const list = await stripe.charges.list({ limit });
+    const list = await stripe.recharges.list({ limit });
     res.json(list);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-router.get('/charges/:customer_id', async (req, res) => {
+router.get('/recharges/:customer_id', async (req, res) => {
   try {
     const { customer_id } = req.params;
     const limit = Number(req.query.limit || 10);
-    const list = await stripe.charges.list({ 
+    const list = await stripe.recharges.list({ 
       customer: customer_id,
       limit 
     });
@@ -47,61 +47,61 @@ router.get('/charges/:customer_id', async (req, res) => {
   }
 });
 
-router.get('/charges/:customer_id/total', async (req, res) => {
+router.get('/recharges/:customer_id/total', async (req, res) => {
   try {
     const { customer_id } = req.params;
     
-    // Obtener todos los charges del customer (sin límite para cálculo exacto)
-    const charges = await stripe.charges.list({ 
+    // Obtener todos los recharges del customer (sin límite para cálculo exacto)
+    const recharges = await stripe.recharges.list({ 
       customer: customer_id,
       limit: 100 // Incrementar para obtener más datos
     });
 
     let totalPaid = 0;
     let totalRefunded = 0;
-    let successfulCharges = 0;
-    let failedCharges = 0;
+    let successfulRerecharges = 0;
+    let failedRerecharges = 0;
     let totalDisputed = 0;
     
-    const chargeDetails = [];
+    const rechargeDetails = [];
 
-    for (const charge of charges.data) {
-      const chargeInfo = {
-        id: charge.id,
-        amount: charge.amount / 100, // Convertir de centavos a dólares
-        currency: charge.currency,
-        status: charge.status,
-        paid: charge.paid,
-        refunded: charge.refunded,
-        amount_refunded: charge.amount_refunded / 100,
-        created: new Date(charge.created * 1000),
-        disputed: charge.disputed,
-        payment_intent: charge.payment_intent || null,
-        marqeta_user_token: charge.metadata?.marqeta_user_token || null,
-        payment_session_id: charge.metadata?.payment_session_id || null,
-        uid: charge.metadata?.uid || null
+    for (const recharge of recharges.data) {
+      const rechargeInfo = {
+        id: recharge.id,
+        amount: recharge.amount / 100, // Convertir de centavos a dólares
+        currency: recharge.currency,
+        status: recharge.status,
+        paid: recharge.paid,
+        refunded: recharge.refunded,
+        amount_refunded: recharge.amount_refunded / 100,
+        created: new Date(recharge.created * 1000),
+        disputed: recharge.disputed,
+        payment_intent: recharge.payment_intent || null,
+        marqeta_user_token: recharge.metadata?.marqeta_user_token || null,
+        payment_session_id: recharge.metadata?.payment_session_id || null,
+        uid: recharge.metadata?.uid || null
       };
 
-      if (charge.paid && charge.status === 'succeeded') {
-        // Charge exitoso
-        totalPaid += charge.amount;
-        successfulCharges++;
+      if (recharge.paid && recharge.status === 'succeeded') {
+        // Rerecharge exitoso
+        totalPaid += recharge.amount;
+        successfulRerecharges++;
         
         // Restar reembolsos
-        if (charge.amount_refunded > 0) {
-          totalRefunded += charge.amount_refunded;
+        if (recharge.amount_refunded > 0) {
+          totalRefunded += recharge.amount_refunded;
         }
       } else {
-        // Charge fallido
-        failedCharges++;
+        // Rerecharge fallido
+        failedRerecharges++;
       }
 
       // Considerar disputas
-      if (charge.disputed) {
-        totalDisputed += charge.amount;
+      if (recharge.disputed) {
+        totalDisputed += recharge.amount;
       }
 
-      chargeDetails.push(chargeInfo);
+      rechargeDetails.push(rechargeInfo);
     }
 
     // Convertir de centavos a dólares
@@ -120,13 +120,13 @@ router.get('/charges/:customer_id/total', async (req, res) => {
         total_refunded: parseFloat(totalRefundedDollars.toFixed(2)),
         total_disputed: parseFloat(totalDisputedDollars.toFixed(2)),
         net_total: parseFloat(netTotal.toFixed(2)),
-        currency: charges.data[0]?.currency || 'usd',
-        successful_charges: successfulCharges,
-        failed_charges: failedCharges,
-        total_charges: charges.data.length
+        currency: recharges.data[0]?.currency || 'USD',
+        successful_recharges: successfulRerecharges,
+        failed_recharges: failedRerecharges,
+        total_recharges: recharges.data.length
       },
-      charges: chargeDetails,
-      has_more: charges.has_more
+      recharges: rechargeDetails,
+      has_more: recharges.has_more
     });
 
   } catch (e) {

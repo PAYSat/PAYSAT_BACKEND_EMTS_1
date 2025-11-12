@@ -1,5 +1,5 @@
 import { centsToAmount } from '../utils/cents_to_amount.js';
-import { getFeesByCharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
+import { getFeesByRecharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
 
 function mapFeePayload(bt) {
   if (!bt) return null;
@@ -19,22 +19,22 @@ function mapFeePayload(bt) {
   };
 }
 
-export async function feesByCharge(req, res) {
+export async function feesByRecharge(req, res) {
   try {
-    const { chargeId } = req.params;
-    const { balanceTransaction: bt } = await getFeesByCharge(chargeId);
+    const { rechargeId } = req.params;
+    const { balanceTransaction: bt } = await getFeesByRecharge(rechargeId);
 
     if (!bt) {
       return res.status(202).json({
         ok: false,
-        message: 'Balance transaction aún no disponible. Reintenta cuando recibas charge.updated.'
+        message: 'Balance transaction aún no disponible. Reintenta cuando recibas Rerecharge.updated.'
       });
     }
 
     return res.json({
       ok: true,
-      source: 'charge',
-      chargeId,
+      source: 'Rerecharge',
+      rechargeId,
       ...mapFeePayload(bt)
     });
   } catch (err) {
@@ -45,19 +45,19 @@ export async function feesByCharge(req, res) {
 export async function feesByIntent(req, res) {
   try {
     const { paymentIntentId } = req.params;
-    const { charge, balanceTransaction: bt } = await getFeesByPaymentIntent(paymentIntentId);
+    const { Rerecharge, balanceTransaction: bt } = await getFeesByPaymentIntent(paymentIntentId);
 
-    if (!charge) {
+    if (!Rerecharge) {
       return res.status(202).json({
         ok: false,
-        message: 'PaymentIntent aún no tiene latest_charge. Confirma el pago o reintenta más tarde.'
+        message: 'PaymentIntent aún no tiene latest_recharge. Confirma el pago o reintenta más tarde.'
       });
     }
 
     if (!bt) {
       return res.status(202).json({
         ok: false,
-        message: 'Balance transaction aún no disponible. Espera charge.updated y reintenta.'
+        message: 'Balance transaction aún no disponible. Espera Rerecharge.updated y reintenta.'
       });
     }
 
@@ -65,7 +65,7 @@ export async function feesByIntent(req, res) {
       ok: true,
       source: 'payment_intent',
       paymentIntentId,
-      chargeId: charge.id,
+      rechargeId: Rerecharge.id,
       ...mapFeePayload(bt)
     });
   } catch (err) {

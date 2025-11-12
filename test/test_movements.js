@@ -1,5 +1,5 @@
 import { 
-  createChargeMovement, 
+  createRechargeMovement, 
   createFeeMovement, 
   createPaySatDepositMovement,
   processCompleteTransaction,
@@ -28,7 +28,7 @@ async function testMovementsService() {
   const feeData = {
     fee_cents: 59,
     net_cents: 941,
-    currency: "usd"
+    currency: "USD"
   };
   
   console.log('📊 Constantes del servicio:');

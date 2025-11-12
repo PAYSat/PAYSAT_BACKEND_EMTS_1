@@ -51,7 +51,7 @@ router.post('/stripe',
     
     // DESACTIVADO: Processing movido a marqeta_webhooks.js para evitar duplicación
     // Solo logging de eventos para auditoría
-    if (event.type === 'payment_intent.succeeded' || event.type === 'charge.succeeded') {
+    if (event.type === 'payment_intent.succeeded' || event.type === 'recharge.succeeded') {
       console.log(`ℹ️ Evento ${event.type} recibido - procesamiento delegado a marqeta_webhooks.js`);
     } else {
       console.log(`ℹ️ Webhook event type not handled: ${event.type}`);

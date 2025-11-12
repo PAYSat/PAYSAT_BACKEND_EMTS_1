@@ -4,7 +4,7 @@ import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
 import { handleJit } from '../services/jit.js';
 import { emailService } from '../services/send_email.js';
-import { getFeesByCharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
+import { getFeesByRecharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
 import { processCompleteTransaction } from '../services/movements_service.js';
 import { centsToAmount } from '../utils/cents_to_amount.js';
 
@@ -30,7 +30,7 @@ function mapFeePayload(bt) {
 }
 
 // Función helper para guardar fees en Firebase
-async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, chargeId = null) {
+async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, rechargeId = null) {
   try {
     if (!feeData) {
       console.log('⚠️ No hay datos de fee disponibles para guardar');
@@ -51,7 +51,7 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, ch
       ...feeData,
       source,
       paymentIntentId,
-      chargeId,
+      rechargeId,
       paysatUID,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -68,10 +68,10 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, ch
 }
 
 // Función helper para verificar si los fees ya fueron procesados
-async function checkIfFeeProcessed(paymentIntentId, chargeId) {
+async function checkIfFeeProcessed(paymentIntentId, rechargeId) {
   try {
-    // Verificar en PaySat_Movements si existe un fee para este payment_intent
-    const feeQuery = await db.collection('PaySat_Movements')
+    // Verificar en PaySat_Account_Movements si existe un fee para este payment_intent
+    const feeQuery = await db.collection('PaySat_Account_Movements')
       .where('typeMovement', '==', 'fee')
       .where('payment_intent_id', '==', paymentIntentId)
       .limit(1)
@@ -82,16 +82,16 @@ async function checkIfFeeProcessed(paymentIntentId, chargeId) {
       return true;
     }
     
-    // También verificar por charge_id si está disponible
-    if (chargeId) {
-      const feeByChargeQuery = await db.collection('PaySat_Movements')
+    // También verificar por recharge_id si está disponible
+    if (rechargeId) {
+      const feeByRechargeQuery = await db.collection('PaySat_Account_Movements')
         .where('typeMovement', '==', 'fee')
-        .where('charge_id', '==', chargeId)
+        .where('recharge_id', '==', rechargeId)
         .limit(1)
         .get();
       
-      if (!feeByChargeQuery.empty) {
-        console.log('✅ Fee ya procesado para charge:', chargeId);
+      if (!feeByRechargeQuery.empty) {
+        console.log('✅ Fee ya procesado para recharge:', rechargeId);
         return true;
       }
     }
@@ -103,27 +103,6 @@ async function checkIfFeeProcessed(paymentIntentId, chargeId) {
     return false; // En caso de error, asumir que no fue procesado
   }
 }
-
-// Funciones de utilidad para Stripe webhooks
-// COMENTADO: getMarqetaFundingSourceToken no se usa por ahora
-/*
-async function getMarqetaFundingSourceToken() {
-  try {
-    const fundingSourcesRef = db.collection('Marqeta_FundingSources');
-    const snapshot = await fundingSourcesRef.limit(1).get();
-    
-    if (snapshot.empty) {
-      throw new Error('No se encontró funding source en Firebase');
-    }
-    
-    const doc = snapshot.docs[0];
-    return doc.id; // El token está como ID del documento
-  } catch (error) {
-    console.error('Error obteniendo funding source:', error);
-    return null;
-  }
-}
-*/
 
 async function processMarqetaReload(paymentIntent, sessionData, sessionRef) {
   // console.log('🔄 Iniciando processMarqetaReload');
@@ -392,7 +371,7 @@ r.post('/stripe', async (req, res) => {
       // � Procesar y guardar fees de Stripe
       try {
         console.log('💰 Procesando fees para payment_intent:', paymentIntent.id);
-        const { charge, balanceTransaction } = await getFeesByPaymentIntent(paymentIntent.id);
+        const { recharge, balanceTransaction } = await getFeesByPaymentIntent(paymentIntent.id);
         
         if (balanceTransaction) {
           const feePayload = mapFeePayload(balanceTransaction);
@@ -403,15 +382,15 @@ r.post('/stripe', async (req, res) => {
             sessionData.paysatUID, 
             'payment_intent',
             paymentIntent.id,
-            charge ? charge.id : null
+            recharge ? recharge.id : null
           );
 
           // 📊 Procesar movimientos contables completos
-          console.log('📊 Procesando movimientos contables para PaySat_Movements...');
+          console.log('📊 Procesando movimientos contables para PaySat_Account_Movements...');
           const movementsResult = await processCompleteTransaction(
             sessionData,
             paymentIntent.id,
-            charge ? charge.id : null,
+            recharge ? recharge.id : null,
             feePayload,
             balanceTransaction.id
           );
@@ -444,7 +423,7 @@ r.post('/stripe', async (req, res) => {
             null
           );
           
-          if (movementsResult.charge?.success) {
+          if (movementsResult.recharge?.success) {
             console.log('✅ Movimiento de recarga procesado sin fees');
           } else {
             console.error('⚠️ Error procesando movimiento de recarga:', movementsResult.errors);
@@ -555,12 +534,12 @@ r.post('/stripe', async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   } 
-  // También manejar charge.succeeded como fallback
+  // También manejar charge.succeeded como fallback (lo tratamos como recharge.succeeded para consistencia)
   else if (event.type === 'charge.succeeded') {
-    console.log('🎯 Procesando charge.succeeded como fallback');
+    console.log('🎯 Procesando charge.succeeded como fallback (recharge.succeeded)');
     
-    const charge = event.data.object;
-    const pi_id = charge.payment_intent;
+    const recharge = event.data.object;  // Es un charge, pero lo tratamos como recharge
+    const pi_id = recharge.payment_intent;
 
     if (pi_id) {
       console.log('🔍 Buscando PaymentIntent:', pi_id, 'desde charge.succeeded');
@@ -595,7 +574,7 @@ r.post('/stripe', async (req, res) => {
             });
 
             // Verificar si ya se procesó - permitir procesamiento de fees si solo se procesó la recarga
-            const feeAlreadyProcessed = await checkIfFeeProcessed(paymentIntent.id, charge.id);
+            const feeAlreadyProcessed = await checkIfFeeProcessed(paymentIntent.id, recharge.id);
             
             if (currentSessionData.webhook_processing) {
               console.log('⚠️ Pago en procesamiento para session desde charge.succeeded:', sessionDoc.id, 'En proceso por:', currentSessionData.processing_event_type);
@@ -636,10 +615,10 @@ r.post('/stripe', async (req, res) => {
             await sessionRef.collection('logs').add({
               type: 'stripe:webhook:charge.succeeded',
               payload: {
-                charge_id: charge.id,
+                recharge_id: recharge.id,  // Es un charge_id, pero lo nombramos recharge_id
                 payment_intent_id: paymentIntent.id,
-                amount: charge.amount,
-                status: charge.status
+                amount: recharge.amount,
+                status: recharge.status
               },
               createdAt: new Date(),
             });
@@ -664,12 +643,12 @@ r.post('/stripe', async (req, res) => {
               console.log('🔄 Saltando processMarqetaReload - solo procesando fees');
             }
 
-            // 💰 Procesar y guardar fees de Stripe desde charge.succeeded + Movimientos contables
-            let feeInfoCharge = null; // Variable para almacenar información de fees para el email
+            // 💰 Procesar y guardar fees de Stripe desde recharge.succeeded + Movimientos contables
+            let feeInfoRecharge = null; // Variable para almacenar información de fees para el email
             
             try {
-              console.log('💰 Procesando fees para charge:', charge.id);
-              const { balanceTransaction } = await getFeesByCharge(charge.id);
+              console.log('💰 Procesando fees para recharge:', recharge.id);
+              const { balanceTransaction } = await getFeesByRecharge(recharge.id);
               
               if (balanceTransaction) {
                 const feePayload = mapFeePayload(balanceTransaction);
@@ -678,13 +657,13 @@ r.post('/stripe', async (req, res) => {
                 await saveFeeToFirebase(
                   feePayload, 
                   sessionData.paysatUID, 
-                  'charge',
+                  'recharge',
                   paymentIntent.id,
-                  charge.id
+                  recharge.id
                 );
 
                 // 📊 Procesar movimientos contables 
-                console.log('📊 Procesando movimientos contables para PaySat_Movements desde charge.succeeded...');
+                console.log('📊 Procesando movimientos contables para PaySat_Account_Movements desde charge.succeeded...');
                 
                 let movementsResult;
                 if (processOnlyFees) {
@@ -693,7 +672,7 @@ r.post('/stripe', async (req, res) => {
                   movementsResult = await processCompleteTransaction(
                     sessionData,
                     paymentIntent.id,
-                    charge.id,
+                    recharge.id,
                     feePayload,
                     balanceTransaction.id,
                     { onlyFees: true } // Flag para indicar que solo procese fees
@@ -703,7 +682,7 @@ r.post('/stripe', async (req, res) => {
                   movementsResult = await processCompleteTransaction(
                     sessionData,
                     paymentIntent.id,
-                    charge.id,
+                    recharge.id,
                     feePayload,
                     balanceTransaction.id
                   );
@@ -724,11 +703,11 @@ r.post('/stripe', async (req, res) => {
                   
                   // Capturar información de fees para el email
                   if (movementsResult.fee?.success && movementsResult.fee.data) {
-                    feeInfoCharge = {
+                    feeInfoRecharge = {
                       totalFee: parseFloat(movementsResult.fee.data.totalFee),
                       netAmount: parseFloat(movementsResult.fee.data.net)
                     };
-                    console.log('📧 Información de fees capturada para email desde charge.succeeded:', feeInfoCharge);
+                    console.log('📧 Información de fees capturada para email desde charge.succeeded:', feeInfoRecharge);
                   }
                 } else {
                   console.error('⚠️ Algunos movimientos contables fallaron desde charge.succeeded:', movementsResult.errors);
@@ -745,19 +724,19 @@ r.post('/stripe', async (req, res) => {
                 }
 
               } else {
-                console.log('⚠️ Balance transaction no disponible aún para charge:', charge.id);
+                console.log('⚠️ Balance transaction no disponible aún para recharge:', recharge.id);
                 
                 // Aún así, procesar el movimiento de recarga sin fees
                 console.log('📊 Procesando solo movimiento de recarga sin fees desde charge.succeeded...');
                 const movementsResult = await processCompleteTransaction(
                   sessionData,
                   paymentIntent.id,
-                  charge.id,
+                  recharge.id,
                   null,
                   null
                 );
                 
-                if (movementsResult.charge?.success) {
+                if (movementsResult.recharge?.success) {
                   console.log('✅ Movimiento de recarga procesado sin fees desde charge.succeeded');
                 } else {
                   console.error('⚠️ Error procesando movimiento de recarga desde charge.succeeded:', movementsResult.errors);
@@ -790,7 +769,7 @@ r.post('/stripe', async (req, res) => {
                   }
                 }
 
-                // console.log('📧 Enviando email desde charge.succeeded a:', userEmail);
+                // console.log('📧 Enviando email desde recharge.succeeded a:', userEmail);
 
                 const emailResult = await emailService.sendReloadConfirmation({
                   email: userEmail,
@@ -799,9 +778,9 @@ r.post('/stripe', async (req, res) => {
                   currency: sessionData.currency?.toUpperCase() || 'USD',
                   paymentSessionId: sessionDoc.id,
                   // Incluir información de fees si está disponible
-                  ...(feeInfoCharge && {
-                    totalFee: feeInfoCharge.totalFee,
-                    netAmount: feeInfoCharge.netAmount
+                  ...(feeInfoRecharge && {
+                    totalFee: feeInfoRecharge.totalFee,
+                    netAmount: feeInfoRecharge.netAmount
                   })
                 });
 

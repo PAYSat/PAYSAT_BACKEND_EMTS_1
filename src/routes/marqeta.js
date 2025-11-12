@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { marqeta } from '../config/marqeta.js';
 import { db } from '../config/firebase.js';
-import { getMarqetaUserToken, getCardProductToken } from '../services/marqeta.js';
+import { getMarqetaUserToken, getCardProductToken } from '../services/paysat_service.js';
 import * as simulations from '../services/simulations.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -186,7 +186,7 @@ router.post('/cards/virtual', async (req, res) => {
     });
     // console.log('✅ Tarjeta guardada en Firebase');
 
-    // Guardar en firestore: PaySat_Movements el movimiento de compra de la tarjeta virtual y el depósito por el mismo valor a la cuenta de PAYSAT
+    // Guardar en firestore: PaySat_Account_Movements el movimiento de compra de la tarjeta virtual y el depósito por el mismo valor a la cuenta de PAYSAT
     try {
       // console.log('📊 Registrando movimientos contables para activación de tarjeta virtual...');
       
@@ -227,7 +227,7 @@ router.post('/cards/virtual', async (req, res) => {
         card_last_four: data.last_four
       };
 
-      await db.collection('PaySat_Movements').doc(buyDocId).set(buyMovement);
+      await db.collection('PaySat_Account_Movements').doc(buyDocId).set(buyMovement);
       // console.log('✅ Movimiento de compra registrado:', buyDocId);
 
       // 2. Registro de depósito a la cuenta principal de PAYSAT
@@ -251,7 +251,7 @@ router.post('/cards/virtual', async (req, res) => {
         origin_user: req.body.paysatUID
       };
 
-      await db.collection('PaySat_Movements').doc(depositDocId).set(depositMovement);
+      await db.collection('PaySat_Account_Movements').doc(depositDocId).set(depositMovement);
       // console.log('✅ Depósito a cuenta PaySat registrado:', depositDocId);
       
       // console.log('✅ Movimientos contables para activación de tarjeta completados exitosamente');

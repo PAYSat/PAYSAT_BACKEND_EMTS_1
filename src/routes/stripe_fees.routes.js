@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { feesByCharge, feesByIntent } from '../controllers/stripe_fees.controller.js';
+import { feesByRecharge, feesByIntent } from '../controllers/stripe_fees.controller.js';
 
 const router = Router();
 
-router.get('/by-charge/:chargeId', feesByCharge);
+router.get('/by-recharge/:rechargeId', feesByRecharge);
 router.get('/by-intent/:paymentIntentId', feesByIntent);
 
 export default router;

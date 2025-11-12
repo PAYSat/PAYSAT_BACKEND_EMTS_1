@@ -1,4 +1,5 @@
 import { db } from '../config/firebase.js';
+import { getUserAccountNumber } from './paysat_service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { centsToAmount } from '../utils/cents_to_amount.js';
 
@@ -7,54 +8,32 @@ const PAYSAT_FEE_CENTS = 100; // 1.00 USD
 const PAYSAT_FEE_AMOUNT = "1.00";
 
 /**
- * Obtiene el numeroCuentaPAYSAT de un usuario
+ * Registra un movimiento de recarga (recharge)
  */
-async function getUserAccountNumber(paysatUID) {
-  try {
-    const userDoc = await db.collection('PaySat_Users').doc(paysatUID).get();
-    if (!userDoc.exists) {
-      throw new Error(`Usuario no encontrado: ${paysatUID}`);
-    }
-    
-    const userData = userDoc.data();
-    if (!userData.numeroCuentaPAYSAT) {
-      throw new Error(`numeroCuentaPAYSAT no encontrado para usuario: ${paysatUID}`);
-    }
-    
-    return userData.numeroCuentaPAYSAT;
-  } catch (error) {
-    console.error('❌ Error obteniendo numeroCuentaPAYSAT:', error);
-    throw error;
-  }
-}
-
-/**
- * Registra un movimiento de recarga (charge)
- */
-async function createChargeMovement(sessionData, paymentIntentId, chargeId) {
+async function createRechargeMovement(sessionData, paymentIntentId, rechargeId) {
   try {
     console.log('💳 Creando movimiento de recarga...');
     
-    // Crear el documento con prefijo "charge_"
-    const chargeDocId = `charge_${chargeId || paymentIntentId}`;
+    // Crear el documento con prefijo "recharge_"
+    const rechargeDocId = `recharge_${rechargeId || paymentIntentId}`;
     
     // Verificar si ya existe para evitar duplicados
-    const existingCharge = await db.collection('PaySat_Movements').doc(chargeDocId).get();
-    if (existingCharge.exists) {
-      console.log('ℹ️ Movimiento de recarga ya existe:', chargeDocId);
-      return { success: true, documentId: chargeDocId, data: existingCharge.data(), skipped: true };
+    const existingRecharge = await db.collection('PaySat_Account_Movements').doc(rechargeDocId).get();
+    if (existingRecharge.exists) {
+      console.log('ℹ️ Movimiento de recarga ya existe:', rechargeDocId);
+      return { success: true, documentId: rechargeDocId, data: existingRecharge.data(), skipped: true };
     }
     
     // Obtener el numeroCuentaPAYSAT del usuario
     const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
     
-    const chargeMovement = {
+    const rechargeMovement = {
       // Información del pago
       ...sessionData,
-      typeMovement: "charge",
+      typeMovement: "recharge",
       numeroCuentaPAYSAT: numeroCuentaPAYSAT,
       payment_intent_id: paymentIntentId,
-      charge_id: chargeId,
+      recharge_id: rechargeId,
       
       // Metadatos
       createdAt: new Date(),
@@ -62,10 +41,10 @@ async function createChargeMovement(sessionData, paymentIntentId, chargeId) {
       source: 'stripe_webhook'
     };
 
-    await db.collection('PaySat_Movements').doc(chargeDocId).set(chargeMovement);
-    console.log('✅ Movimiento de recarga creado:', chargeDocId);
+    await db.collection('PaySat_Account_Movements').doc(rechargeDocId).set(rechargeMovement);
+    console.log('✅ Movimiento de recarga creado:', rechargeDocId);
     
-    return { success: true, documentId: chargeDocId, data: chargeMovement };
+    return { success: true, documentId: rechargeDocId, data: rechargeMovement };
   } catch (error) {
     console.error('❌ Error creando movimiento de recarga:', error);
     return { success: false, error: error.message };
@@ -83,7 +62,7 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
     const feeDocId = `fee_${balanceTransactionId}`;
     
     // Verificar si ya existe para evitar duplicados
-    const existingFee = await db.collection('PaySat_Movements').doc(feeDocId).get();
+    const existingFee = await db.collection('PaySat_Account_Movements').doc(feeDocId).get();
     if (existingFee.exists) {
       console.log('ℹ️ Movimiento de fee ya existe:', feeDocId);
       return { success: true, documentId: feeDocId, data: existingFee.data(), skipped: true };
@@ -127,7 +106,7 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
       source: 'stripe_webhook'
     };
 
-    await db.collection('PaySat_Movements').doc(feeDocId).set(feeMovement);
+    await db.collection('PaySat_Account_Movements').doc(feeDocId).set(feeMovement);
     console.log('✅ Movimiento de fee creado:', feeDocId);
     
     return { success: true, documentId: feeDocId, data: feeMovement };
@@ -149,7 +128,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     const depositDocId = `deposit_${depositId}`;
     
     // Verificar si ya existe un depósito para este balanceTransactionId
-    const existingDepositQuery = await db.collection('PaySat_Movements')
+    const existingDepositQuery = await db.collection('PaySat_Account_Movements')
       .where('typeMovement', '==', 'deposit')
       .where('from', '==', balanceTransactionId)
       .where('description', '==', 'fee')
@@ -178,7 +157,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       source: 'paysat_fee_collection'
     };
 
-    await db.collection('PaySat_Movements').doc(depositDocId).set(depositMovement);
+    await db.collection('PaySat_Account_Movements').doc(depositDocId).set(depositMovement);
     console.log('✅ Depósito PaySat creado:', depositDocId);
     
     return { success: true, documentId: depositDocId, data: depositMovement };
@@ -191,13 +170,13 @@ async function createPaySatDepositMovement(balanceTransactionId) {
 /**
  * Procesa todos los movimientos contables para una transacción completa
  */
-async function processCompleteTransaction(sessionData, paymentIntentId, chargeId, feeData, balanceTransactionId, options = {}) {
+async function processCompleteTransaction(sessionData, paymentIntentId, rechargeId, feeData, balanceTransactionId, options = {}) {
   console.log('📊 Procesando movimientos contables completos...');
   
   const { onlyFees = false } = options;
   
   const results = {
-    charge: null,
+    recharge: null,
     fee: null,
     deposit: null,
     success: true,
@@ -208,28 +187,28 @@ async function processCompleteTransaction(sessionData, paymentIntentId, chargeId
     // 1. Crear movimiento de recarga (solo si no es onlyFees)
     if (!onlyFees) {
       console.log('1️⃣ Procesando movimiento de recarga...');
-      const chargeResult = await createChargeMovement(sessionData, paymentIntentId, chargeId);
-      results.charge = chargeResult;
+      const rechargeResult = await createRechargeMovement(sessionData, paymentIntentId, rechargeId);
+      results.recharge = rechargeResult;
       
-      if (!chargeResult.success) {
-        results.errors.push(`Charge movement error: ${chargeResult.error}`);
+      if (!rechargeResult.success) {
+        results.errors.push(`Recharge movement error: ${rechargeResult.error}`);
         results.success = false;
       }
     } else {
       console.log('1️⃣ Saltando movimiento de recarga (onlyFees=true)...');
       
       // Verificar que existe el movimiento de recarga
-      const chargeDocId = `charge_${chargeId || paymentIntentId}`;
-      const existingCharge = await db.collection('PaySat_Movements').doc(chargeDocId).get();
+      const rechargeDocId = `recharge_${rechargeId || paymentIntentId}`;
+      const existingRecharge = await db.collection('PaySat_Account_Movements').doc(rechargeDocId).get();
       
-      if (!existingCharge.exists) {
-        console.error('❌ No se encontró movimiento de recarga existente:', chargeDocId);
-        results.errors.push('No existing charge movement found for fees processing');
+      if (!existingRecharge.exists) {
+        console.error('❌ No se encontró movimiento de recarga existente:', rechargeDocId);
+        results.errors.push('No existing recharge movement found for fees processing');
         results.success = false;
         return results;
       } else {
-        console.log('✅ Movimiento de recarga existente confirmado:', chargeDocId);
-        results.charge = { success: true, documentId: chargeDocId, data: existingCharge.data(), skipped: true };
+        console.log('✅ Movimiento de recarga existente confirmado:', rechargeDocId);
+        results.recharge = { success: true, documentId: rechargeDocId, data: existingRecharge.data(), skipped: true };
       }
     }
 
@@ -259,7 +238,7 @@ async function processCompleteTransaction(sessionData, paymentIntentId, chargeId
     }
 
     console.log('📋 Resumen de movimientos procesados:', {
-      charge: results.charge?.success || false,
+      recharge: results.recharge?.success || false,
       fee: results.fee?.success || false,
       deposit: results.deposit?.success || false,
       totalSuccess: results.success
@@ -276,7 +255,7 @@ async function processCompleteTransaction(sessionData, paymentIntentId, chargeId
 }
 
 export {
-  createChargeMovement,
+  createRechargeMovement,
   createFeeMovement,
   createPaySatDepositMovement,
   processCompleteTransaction,
