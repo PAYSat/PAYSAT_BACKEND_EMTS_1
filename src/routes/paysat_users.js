@@ -126,8 +126,28 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
 
     // Ordenar transacciones por fecha y hora (más recientes primero - descendente)
     transacciones.sort((a, b) => {
-      const dateA = new Date(a.createdAt);
-      const dateB = new Date(b.createdAt);
+      // Convertir las fechas, manejando tanto Date objects como Timestamps de Firestore
+      let dateA, dateB;
+      
+      if (a.createdAt && typeof a.createdAt.toDate === 'function') {
+        // Es un Timestamp de Firestore
+        dateA = a.createdAt.toDate();
+      } else if (a.createdAt) {
+        // Es un Date object o string
+        dateA = new Date(a.createdAt);
+      } else {
+        dateA = new Date(0); // Fecha mínima como fallback
+      }
+      
+      if (b.createdAt && typeof b.createdAt.toDate === 'function') {
+        // Es un Timestamp de Firestore
+        dateB = b.createdAt.toDate();
+      } else if (b.createdAt) {
+        // Es un Date object o string
+        dateB = new Date(b.createdAt);
+      } else {
+        dateB = new Date(0); // Fecha mínima como fallback
+      }
       
       // Validar que las fechas sean válidas
       const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
@@ -137,13 +157,60 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
       return timeB - timeA;
     });
 
+    // Calcular balanceAfter para cada transacción (en orden cronológico inverso)
+    let balanceAcumulado = 0.00;
+    
+    // Primero ordenamos cronológicamente (ascendente) para calcular balances
+    const transaccionesOrdenCronologico = [...transacciones].reverse();
+    
+    // Calcular balance acumulativo
+    transaccionesOrdenCronologico.forEach(tx => {
+      const monto = tx.amount;
+      const typeMovement = tx.typeMovement;
+      
+      // Aplicar el movimiento al balance
+      if (typeMovement === 'deposit' || typeMovement === 'recharge') {
+        balanceAcumulado += monto;
+      } else if (typeMovement === 'buy' || typeMovement === 'recharge_card') {
+        balanceAcumulado -= monto;
+      } else if (typeMovement === 'fee') {
+        balanceAcumulado -= tx.totalFee || 0;
+      }
+      
+      // Asignar balance después de la transacción
+      tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
+    });
+
     // Redondear saldo a 2 decimales
     saldoTotal = parseFloat(saldoTotal.toFixed(2));
 
     console.log(`✅ Procesados ${transacciones.length} movimientos, saldo total: $${saldoTotal}`);
-    console.log(`📅 Rango de fechas: ${transacciones.length > 0 ? 
-      `desde ${new Date(transacciones[transacciones.length - 1].createdAt).toLocaleString()} hasta ${new Date(transacciones[0].createdAt).toLocaleString()}` : 
-      'sin movimientos'}`);
+    
+    // Mostrar rango de fechas con manejo correcto de Timestamps
+    if (transacciones.length > 0) {
+      const fechaMasReciente = transacciones[0].createdAt;
+      const fechaMasAntigua = transacciones[transacciones.length - 1].createdAt;
+      
+      let fechaRecienteStr, fechaAntiguaStr;
+      
+      // Convertir fechas para logging
+      if (fechaMasReciente && typeof fechaMasReciente.toDate === 'function') {
+        fechaRecienteStr = fechaMasReciente.toDate().toLocaleString();
+      } else {
+        fechaRecienteStr = new Date(fechaMasReciente).toLocaleString();
+      }
+      
+      if (fechaMasAntigua && typeof fechaMasAntigua.toDate === 'function') {
+        fechaAntiguaStr = fechaMasAntigua.toDate().toLocaleString();
+      } else {
+        fechaAntiguaStr = new Date(fechaMasAntigua).toLocaleString();
+      }
+      
+      console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
+      console.log(`💰 Balance inicial: $0.00, Balance final: $${saldoTotal}`);
+    } else {
+      console.log('📅 Rango de fechas: sin movimientos');
+    }
 
     res.json({
       ok: true,
@@ -376,6 +443,30 @@ router.get('/cards/transactions/history/:paysatUID', async (_req, res) => {
       return timeB - timeA;
     });
 
+    // Calcular balanceAfter para cada transacción de tarjeta (en orden cronológico inverso)
+    let balanceAcumulado = 0.00;
+    
+    // Primero ordenamos cronológicamente (ascendente) para calcular balances
+    const transaccionesOrdenCronologico = [...transacciones].reverse();
+    
+    // Calcular balance acumulativo para transacciones de tarjeta
+    transaccionesOrdenCronologico.forEach(tx => {
+      const monto = tx.amount;
+      const typeMovement = tx.typeMovement;
+      
+      // Aplicar el movimiento al balance de la tarjeta
+      if (typeMovement === 'deposit' || typeMovement === 'recharge') {
+        balanceAcumulado += monto;
+      } else if (typeMovement === 'buy') {
+        balanceAcumulado -= monto;
+      } else if (typeMovement === 'fee') {
+        balanceAcumulado -= tx.totalFee || 0;
+      }
+      
+      // Asignar balance después de la transacción
+      tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
+    });
+
     // Redondear saldo a 2 decimales
     saldoTotal = parseFloat(saldoTotal.toFixed(2));
 
@@ -402,6 +493,7 @@ router.get('/cards/transactions/history/:paysatUID', async (_req, res) => {
       }
       
       console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
+      console.log(`💳 Balance inicial de tarjeta: $0.00, Balance final: $${saldoTotal}`);
     } else {
       console.log('📅 Rango de fechas: sin movimientos');
     }

@@ -184,9 +184,23 @@ async function processCompleteTransaction(sessionData, paymentIntentId, recharge
   };
 
   try {
-    // 1. Crear movimiento de recarga (solo si no es onlyFees)
+    // 1. Crear movimiento de fee PRIMERO (solo si hay datos de fee)
+    if (feeData && balanceTransactionId) {
+      console.log('1️⃣ Procesando movimiento de fee (PRIMERO)...');
+      const feeResult = await createFeeMovement(feeData, sessionData, balanceTransactionId);
+      results.fee = feeResult;
+      
+      if (!feeResult.success) {
+        results.errors.push(`Fee movement error: ${feeResult.error}`);
+        results.success = false;
+      }
+    } else if (!onlyFees) {
+      console.log('⚠️ No hay datos de fee disponibles para procesar primero');
+    }
+
+    // 2. Crear movimiento de recarga/charge SEGUNDO (solo si no es onlyFees)
     if (!onlyFees) {
-      console.log('1️⃣ Procesando movimiento de recarga...');
+      console.log('2️⃣ Procesando movimiento de recarga/charge (SEGUNDO)...');
       const rechargeResult = await createRechargeMovement(sessionData, paymentIntentId, rechargeId);
       results.recharge = rechargeResult;
       
@@ -195,7 +209,7 @@ async function processCompleteTransaction(sessionData, paymentIntentId, recharge
         results.success = false;
       }
     } else {
-      console.log('1️⃣ Saltando movimiento de recarga (onlyFees=true)...');
+      console.log('2️⃣ Saltando movimiento de recarga (onlyFees=true)...');
       
       // Verificar que existe el movimiento de recarga
       const rechargeDocId = `recharge_${rechargeId || paymentIntentId}`;
@@ -212,29 +226,18 @@ async function processCompleteTransaction(sessionData, paymentIntentId, recharge
       }
     }
 
-    // 2. Crear movimiento de fee (solo si hay datos de fee)
-    if (feeData && balanceTransactionId) {
-      console.log('2️⃣ Procesando movimiento de fee...');
-      const feeResult = await createFeeMovement(feeData, sessionData, balanceTransactionId);
-      results.fee = feeResult;
+    // 3. Crear depósito PaySat TERCERO (solo si el fee se procesó correctamente)
+    if (results.fee?.success || (onlyFees && feeData && balanceTransactionId)) {
+      console.log('3️⃣ Procesando depósito PaySat (TERCERO)...');
+      const depositResult = await createPaySatDepositMovement(balanceTransactionId);
+      results.deposit = depositResult;
       
-      if (!feeResult.success) {
-        results.errors.push(`Fee movement error: ${feeResult.error}`);
+      if (!depositResult.success) {
+        results.errors.push(`Deposit movement error: ${depositResult.error}`);
         results.success = false;
-      } else {
-        // 3. Crear depósito PaySat (solo si el fee se procesó correctamente)
-        console.log('3️⃣ Procesando depósito PaySat...');
-        const depositResult = await createPaySatDepositMovement(balanceTransactionId);
-        results.deposit = depositResult;
-        
-        if (!depositResult.success) {
-          results.errors.push(`Deposit movement error: ${depositResult.error}`);
-          results.success = false;
-        }
       }
     } else {
-      console.log('⚠️ No hay datos de fee disponibles, saltando movimientos de fee y depósito');
-      results.errors.push('No fee data available');
+      console.log('⚠️ No se procesó fee exitosamente, saltando depósito PaySat');
     }
 
     console.log('📋 Resumen de movimientos procesados:', {
