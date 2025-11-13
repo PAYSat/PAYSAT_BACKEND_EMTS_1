@@ -32,11 +32,14 @@ export async function createCard({ user_token, card_product_token }) {
 // ---------- GPA TOP-UP ----------
 export async function createGPAOrder({ user_token, amount, currency_code = 'USD', funding_source_token }) {
   const body = {
-    user_token,
-    amount: Number(amount),
-    currency_code,
-    funding_source_token
+    user_token: user_token,
+    amount: parseFloat(amount).toFixed(2),
+    currency_code: currency_code,
+    funding_source_token: funding_source_token
   };
+  
+  console.log('📊 GPA Order payload:', body);
+  
   const { data } = await marqeta.post('/gpaorders', body);
   return { request: body, response: data };
 }
