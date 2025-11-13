@@ -3,6 +3,7 @@ import { userProfile } from '../controllers/auth.controller.js';
 import { db } from '../config/firebase.js';
 import { createGPAOrder } from '../services/marqeta.js';
 import { getMarqetaUserToken, getFundingSourceToken } from '../services/paysat_service.js';
+import { emailService } from '../services/send_email.js';
 import { v4 as uuidv4 } from 'uuid';
 // import { requireRole } from '../middlewares/roles.js';
 
@@ -783,6 +784,53 @@ router.post('/cards/recharge', async (req, res) => {
     });
 
     console.log('✅ Recarga de tarjeta completada exitosamente');
+
+    // 📧 Enviar email de confirmación de recarga de tarjeta virtual
+    console.log('📧 Preparando envío de email de confirmación de recarga de tarjeta...');
+    
+    try {
+      // Obtener información adicional del usuario si está disponible
+      let userName = 'Usuario';
+      if (userEmail) {
+        userName = userEmail.split('@')[0];
+      }
+      
+      // Intentar obtener el nombre real del usuario
+      if (userData.primerNombre || userData.nombreCompleto) {
+        userName = userData.primerNombre || userData.nombreCompleto || userName;
+        console.log('👤 Nombre de usuario obtenido:', userName);
+      }
+
+      // Verificar que hay email para enviar
+      if (!userEmail || userEmail === 'email@not.found') {
+        console.log('⚠️ Saltando envío de email: no hay email válido para el usuario');
+      } else {
+        console.log('📧 Enviando email de confirmación a:', userEmail);
+
+        // Enviar email de confirmación de recarga de tarjeta
+        const emailResult = await emailService.sendCardRechargeConfirmation({
+          email: userEmail,
+          userName: userName,
+          amount: amountParsed,
+          currency: currency_code?.toUpperCase() || 'USD',
+          gpaOrderToken: rechargeResult.response.token,
+          cardMovementId: cardMovementId,
+          accountMovementId: accountMovementId,
+          numeroCuentaPAYSAT: userAccountNumber,
+          paysatUID: paysatUID
+        });
+
+        console.log('📧 Resultado del email:', emailResult.success ? '✅ Enviado exitosamente' : '❌ Error en envío');
+        
+        if (emailResult.error) {
+          console.log('❌ Error específico del email:', emailResult.error);
+        }
+      }
+
+    } catch (emailError) {
+      console.error('❌ Error enviando email de confirmación de recarga de tarjeta:', emailError);
+      // No fallar la transacción por error en el email, solo logear
+    }
 
     res.json({
       ok: true,
