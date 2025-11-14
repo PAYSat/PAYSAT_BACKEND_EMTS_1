@@ -289,7 +289,7 @@ class EmailService {
             <div class="details">
               <h3><span class="card-icon">💳</span>Detalles de la transacción:</h3>
               <p><strong>Monto recargado:</strong> $${formattedAmount} ${data.currency}</p>
-              <p><strong>Token GPA:</strong> ${data.gpaOrderToken}</p>
+              <!-- <p><strong>Token GPA:</strong> ${data.gpaOrderToken}</p> -->
               <p><strong>Número de cuenta:</strong> ${data.numeroCuentaPAYSAT}</p>
               <p><strong>Fecha:</strong> ${data.date}</p>
               <p><strong>Estado:</strong> Completada ✅</p>
