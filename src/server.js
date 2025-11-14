@@ -57,7 +57,7 @@ app.use('/webhooks/stripe', stripeWebhookRouter);
 // ====== Health pública ======
 app.get('/health', (_req, res) => res.json({ ok: true, msg: 'up' }));
 
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 8704;
 app.listen(port, () => {
   console.log(`API running on http://localhost:${port}`);
 });
@@ -96,7 +96,7 @@ app.listen(port, () => {
 // // Webhooks Stripe
 // app.use('/webhooks/stripe', stripeWebhookRouter);
 
-// const port = process.env.PORT || 8080;
+// const port = process.env.PORT || 8704;
 // app.listen(port, () => {
 //   console.log(`Backend listening on :${port}`);
 // });
