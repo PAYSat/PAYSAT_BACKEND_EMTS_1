@@ -623,7 +623,7 @@ router.get('/cards/check/:paysatUID', async (_req, res) => {
     }
 
     // Contar cuantas tarjetas virtuales del usuario desde Marqeta_Cards
-    const cardsSnapshot = await db.collection('Marqeta_Cards')
+    const cardsSnapshot = await db.collection('Stripe_Issuing_Cards')
       .where('paysatUID', '==', paysatUID)
       .count()
       .get();
