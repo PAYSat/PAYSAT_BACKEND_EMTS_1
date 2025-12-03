@@ -122,12 +122,19 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
 async function createPaySatDepositMovement(balanceTransactionId) {
   try {
     console.log('🏦 Creando depósito a cuenta principal PaySat...');
+    // console.log('🔍 DEBUG - Variables de entorno:', {
+    //   PAYSAT_MAIN_ACCOUNT_UID: process.env.PAYSAT_MAIN_ACCOUNT_UID ? 'CONFIGURED' : 'MISSING',
+    //   PAYSAT_MAIN_ACCOUNT_EMAIL: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL ? 'CONFIGURED' : 'MISSING',
+    //   PAYSAT_MAIN_ACCOUNT_NUMBER: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER ? 'CONFIGURED' : 'MISSING'
+    // });
     
     // Generar ID único para el depósito
     const depositId = uuidv4();
     const depositDocId = `deposit_${depositId}`;
+    // console.log('📄 DepositDocId generado:', depositDocId);
     
     // Verificar si ya existe un depósito para este balanceTransactionId
+    // console.log('🔍 Verificando depósito existente para balanceTransactionId:', balanceTransactionId);
     const existingDepositQuery = await db.collection('PaySat_Account_Movements')
       .where('typeMovement', '==', 'deposit')
       .where('from', '==', balanceTransactionId)
@@ -141,6 +148,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       return { success: true, documentId: existingDeposit.id, data: existingDeposit.data(), skipped: true };
     }
     
+    // console.log('💰 Creando documento de depósito...');
     const depositMovement = {
       typeMovement: "deposit",
       amount: PAYSAT_FEE_AMOUNT,
@@ -157,6 +165,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       source: 'paysat_fee_collection'
     };
 
+    // console.log('💾 Guardando depósito en Firebase...');
     await db.collection('PaySat_Account_Movements').doc(depositDocId).set(depositMovement);
     console.log('✅ Depósito PaySat creado:', depositDocId);
     
