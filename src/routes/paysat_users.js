@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import { userProfile } from '../controllers/auth.controller.js';
 import { db } from '../config/firebase.js';
-import { createGPAOrder } from '../services/marqeta.js';
-import { getMarqetaUserToken, getFundingSourceToken } from '../services/paysat_service.js';
 import { emailService } from '../services/send_email.js';
 import { v4 as uuidv4 } from 'uuid';
 // import { requireRole } from '../middlewares/roles.js';
@@ -569,16 +567,14 @@ router.get('/cards/transactions/balance/:paysatUID', async (_req, res) => {
       } else if (typeMovement === 'buy') {
         saldoTotal -= monto; // Restar fees y compras
       } else if (typeMovement === 'fee') {
-        saldoTotal -= parseFloat(data.totalFee);        // Aquí puedes manejar otros tipos de movimientos si es necesario
+        saldoTotal -= parseFloat(data.totalFee);
       }
-
     });
 
-    
-    const cardData = await db.collection('Marqeta_Cards')
+    // Obtener información de tarjetas del usuario
+    const cardData = await db.collection('Stripe_Cards')
       .where('paysatUID', '==', paysatUID)
       .get();
-
 
     // Redondear saldo a 2 decimales
     saldoTotal = parseFloat(saldoTotal.toFixed(2));
@@ -622,7 +618,6 @@ router.get('/cards/check/:paysatUID', async (_req, res) => {
       });
     }
 
-    // Contar cuantas tarjetas virtuales del usuario desde Marqeta_Cards
     const cardsSnapshot = await db.collection('Stripe_Issuing_Cards')
       .where('paysatUID', '==', paysatUID)
       .count()
@@ -643,213 +638,6 @@ router.get('/cards/check/:paysatUID', async (_req, res) => {
     res.status(500).json({ 
       ok: false, 
       error: 'Internal server error',
-      details: error.message 
-    });
-  }
-});
-
-router.post('/cards/recharge', async (req, res) => {
-  const { paysatUID, amount, currency_code } = req.body;
-
-  try {
-    console.log('� Iniciando recarga de tarjeta virtual para:', paysatUID);
-    
-    // Validaciones básicas
-    if (!paysatUID || paysatUID.trim() === '') {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'paysatUID es requerido y no puede estar vacío' 
-      });
-    }
-
-    if (!amount || parseFloat(amount) <= 0) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'amount debe ser mayor a 0' 
-      });
-    }
-
-    if (!currency_code) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'currency_code es requerido' 
-      });
-    }
-
-    // Obtener información del usuario para email y número de cuenta
-    const userDoc = await db.collection('PaySat_Users').doc(paysatUID).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ 
-        ok: false, 
-        error: 'Usuario no encontrado' 
-      });
-    }
-    
-    const userData = userDoc.data();
-    const userEmail = userData.correo || 'email@not.found';
-    const userAccountNumber = userData.numeroCuentaPAYSAT || 'N/A';
-
-    // Obtener tokens necesarios de Marqeta
-    console.log('📝 Obteniendo tokens de Marqeta...');
-    const marqetaUserToken = await getMarqetaUserToken(paysatUID);
-    const fundingSourceToken = await getFundingSourceToken();
-
-    console.log('✅ Tokens obtenidos:', {
-      marqetaUserToken: marqetaUserToken,
-      fundingSourceToken: fundingSourceToken
-    });
-
-    // Validar que los tokens no sean null o undefined
-    if (!marqetaUserToken) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'No se pudo obtener el token de usuario de Marqeta para este paysatUID' 
-      });
-    }
-
-    if (!fundingSourceToken) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'No se pudo obtener el token de funding source de Marqeta' 
-      });
-    }
-
-    // Preparar amount con 2 decimales
-    const amountParsed = parseFloat(parseFloat(amount).toFixed(2));
-
-    // Crear GPA Order en Marqeta
-    console.log('💰 Creando GPA Order en Marqeta...');
-    console.log('🔍 Parámetros para GPA Order:', {
-      user_token: marqetaUserToken,
-      funding_source_token: fundingSourceToken,
-      amount: amountParsed,
-      currency_code: currency_code?.toUpperCase() || 'USD'
-    });
-    
-    const rechargeResult = await createGPAOrder({
-      user_token: marqetaUserToken,
-      funding_source_token: fundingSourceToken,
-      amount: amountParsed,
-      currency_code: currency_code?.toUpperCase() || 'USD'
-    });
-
-    console.log('✅ GPA Order creado exitosamente:', rechargeResult.response.token);
-
-    const amountCents = toCents(amountParsed);
-    const currentDate = new Date();
-
-    // 1. Guardar en Marqeta_GPA_Orders
-    console.log('💾 Guardando GPA Order en Firebase...');
-    await db.collection('Marqeta_GPA_Orders').doc(rechargeResult.response.token).set({
-      gpaOrder: rechargeResult,
-      createdAt: currentDate,
-      from: "RECHARGE_CARD_FOR_MARQETA",
-      paysatUID: paysatUID,
-      amount: amountParsed,
-      amount_cents: amountCents
-    });
-
-    // 2. Crear movimiento en PaySat_Card_Movements
-    const cardMovementId = `recharge_card_${uuidv4()}`;
-    console.log('📊 Creando movimiento en PaySat_Card_Movements:', cardMovementId);
-    
-    await db.collection('PaySat_Card_Movements').doc(cardMovementId).set({
-      typeMovement: "recharge",
-      amount: amountParsed,
-      amount_cents: amountCents,
-      currency: currency_code?.toUpperCase() || 'USD',
-      paysatUID: paysatUID,
-      email: userEmail,
-      numeroCuentaPAYSAT: userAccountNumber,
-      from: rechargeResult.response.token,
-      description: "RECHARGE_CARD_FOR_MARQETA",
-      createdAt: currentDate
-    });
-
-    // 3. Crear movimiento en PaySat_Account_Movements
-    const accountMovementId = `recharge_card_${uuidv4()}`;
-    console.log('📊 Creando movimiento en PaySat_Account_Movements:', accountMovementId);
-    
-    await db.collection('PaySat_Account_Movements').doc(accountMovementId).set({
-      typeMovement: "recharge_card",
-      amount: amountParsed,
-      amount_cents: amountCents,
-      currency: currency_code?.toUpperCase() || 'USD',
-      paysatUID: paysatUID,
-      email: userEmail,
-      numeroCuentaPAYSAT: userAccountNumber,
-      from: rechargeResult.response.token,
-      description: "RECHARGE_CARD_FOR_MARQETA",
-      createdAt: currentDate
-    });
-
-    console.log('✅ Recarga de tarjeta completada exitosamente');
-
-    // 📧 Enviar email de confirmación de recarga de tarjeta virtual
-    console.log('📧 Preparando envío de email de confirmación de recarga de tarjeta...');
-    
-    try {
-      // Obtener información adicional del usuario si está disponible
-      let userName = 'Usuario';
-      if (userEmail) {
-        userName = userEmail.split('@')[0];
-      }
-      
-      // Intentar obtener el nombre real del usuario
-      if (userData.primerNombre || userData.nombreCompleto) {
-        userName = userData.primerNombre || userData.nombreCompleto || userName;
-        console.log('👤 Nombre de usuario obtenido:', userName);
-      }
-
-      // Verificar que hay email para enviar
-      if (!userEmail || userEmail === 'email@not.found') {
-        console.log('⚠️ Saltando envío de email: no hay email válido para el usuario');
-      } else {
-        console.log('📧 Enviando email de confirmación a:', userEmail);
-
-        // Enviar email de confirmación de recarga de tarjeta
-        const emailResult = await emailService.sendCardRechargeConfirmation({
-          email: userEmail,
-          userName: userName,
-          amount: amountParsed,
-          currency: currency_code?.toUpperCase() || 'USD',
-          gpaOrderToken: rechargeResult.response.token,
-          cardMovementId: cardMovementId,
-          accountMovementId: accountMovementId,
-          numeroCuentaPAYSAT: userAccountNumber,
-          paysatUID: paysatUID
-        });
-
-        console.log('📧 Resultado del email:', emailResult.success ? '✅ Enviado exitosamente' : '❌ Error en envío');
-        
-        if (emailResult.error) {
-          console.log('❌ Error específico del email:', emailResult.error);
-        }
-      }
-
-    } catch (emailError) {
-      console.error('❌ Error enviando email de confirmación de recarga de tarjeta:', emailError);
-      // No fallar la transacción por error en el email, solo logear
-    }
-
-    res.json({
-      ok: true,
-      data: {
-        gpaOrderToken: rechargeResult.response.token,
-        amount: amountParsed,
-        currency: currency_code?.toUpperCase() || 'USD',
-        cardMovementId: cardMovementId,
-        accountMovementId: accountMovementId,
-        status: rechargeResult.response.state || 'completed'
-      },
-      message: 'Recarga de tarjeta virtual completada exitosamente'
-    });
-
-  } catch (error) {
-    console.error('❌ Error en recarga de tarjeta:', error);
-    res.status(500).json({ 
-      ok: false, 
-      error: 'Error interno del servidor',
       details: error.message 
     });
   }

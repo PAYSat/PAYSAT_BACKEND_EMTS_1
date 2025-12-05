@@ -39,7 +39,6 @@ router.post('/virtual', async (req, res) => {
     // 1) Crear tarjeta virtual en Stripe Issuing
     const card = await createVirtualCardForUser(paysatUID);
 
-    // 2) Registrar movimientos contables (similar a lo que hacías con Marqeta)
     const amountCents = toCents(costParsed);
     const now = new Date();
 
@@ -60,16 +59,31 @@ router.post('/virtual', async (req, res) => {
       provider: 'stripe_issuing',
     });
 
-    // 2.2 Movimiento: depósito a la “cuenta PAYSAT” por el mismo valor (contable)
+    // 2.2 Movimiento: depósito a la "cuenta PAYSAT" por el mismo valor (contable)
     const depositDocId = `deposit_virtual_card_${uuidv4()}`;
+    
+    // HARDCODED TEMPORALMENTE - VALORES CORRECTOS
+    const CORRECT_UID = '93xxiCL2qJX91rxnPy2PaBsxrWo1';
+    const CORRECT_EMAIL = 'paysat.account@paysatmoney.com';
+    const CORRECT_NUMBER = 'JS5670370';
+    
+    console.log('🔍 DEBUG issuing_cards - Valores hardcodeados:', {
+      CORRECT_UID, CORRECT_EMAIL, CORRECT_NUMBER
+    });
+    console.log('⚠️ DEBUG issuing_cards - Variables de entorno:', {
+      PAYSAT_MAIN_ACCOUNT_UID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
+      PAYSAT_MAIN_ACCOUNT_EMAIL: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
+      PAYSAT_MAIN_ACCOUNT_NUMBER: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER
+    });
+    
     await db.collection('PaySat_Account_Movements').doc(depositDocId).set({
       typeMovement: 'deposit',
       amount: costParsed,
       amount_cents: amountCents,
       currency: 'USD',
-      paysatUID,
-      email: userEmail,
-      numeroCuentaPAYSAT: userAccountNumber,
+      paysatUID: CORRECT_UID,
+      email: CORRECT_EMAIL,
+      numeroCuentaPAYSAT: CORRECT_NUMBER,
       from: 'Deposit_PAYSAT_Virtual_Card',
       description: `Emission_PAYSAT_Virtual_Card usr: ${paysatUID}`,
       createdAt: now,

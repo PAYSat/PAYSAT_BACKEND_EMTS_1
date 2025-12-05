@@ -141,8 +141,8 @@ class EmailService {
                 </div>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #D1D5DB;">
                 <div class="fee-line">
-                  <span class="highlight">Monto disponible en tu cuenta: </span>
-                  <span class="highlight">$${formattedNetAmount} ${data.currency}</span>
+                  <span class="highlight">Monto disponible en tu cuenta:</span>
+                  <span class="highlight">&nbsp;$${formattedNetAmount} ${data.currency}</span>
                 </div>
               </div>
               ` : ''}

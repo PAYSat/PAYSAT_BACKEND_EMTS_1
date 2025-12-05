@@ -38,9 +38,9 @@ export async function ensureCardholderForUser(paysatUID) {
     first_name: userData.nombres || 'Test',
     last_name: userData.apellidos || 'User',
     dob: {
-      day: 1,
-      month: 1,
-      year: 1990,
+      day: userData.dobDiaNacimiento || 1,
+      month: userData.dobMesNacimiento || 1,
+      year: userData.dobAnioNacimiento || 1990,
     },
   },
     name: fullName,

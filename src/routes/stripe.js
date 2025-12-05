@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { stripe } from '../config/stripe.js';
-import { marqeta } from '../config/marqeta.js';
 
 const router = Router();
 
@@ -77,7 +76,6 @@ router.get('/recharges/:customer_id/total', async (req, res) => {
         created: new Date(recharge.created * 1000),
         disputed: recharge.disputed,
         payment_intent: recharge.payment_intent || null,
-        marqeta_user_token: recharge.metadata?.marqeta_user_token || null,
         payment_session_id: recharge.metadata?.payment_session_id || null,
         uid: recharge.metadata?.uid || null
       };

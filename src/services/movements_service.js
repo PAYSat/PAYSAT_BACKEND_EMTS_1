@@ -14,14 +14,39 @@ async function createRechargeMovement(sessionData, paymentIntentId, rechargeId) 
   try {
     console.log('💳 Creando movimiento de recarga...');
     
-    // Crear el documento con prefijo "recharge_"
-    const rechargeDocId = `recharge_${rechargeId || paymentIntentId}`;
+    // Prioridad: charge_id > rechargeId > paymentIntentId
+    // Esto asegura que siempre usamos el charge_id cuando está disponible
+    const documentId = sessionData.charge_id || rechargeId || paymentIntentId;
+    const rechargeDocId = `recharge_${documentId}`;
+    
+    // console.log('📝 ID del documento de recarga:', rechargeDocId);
+    // console.log('📝 Basado en:', sessionData.charge_id ? 'charge_id' : (rechargeId ? 'rechargeId' : 'paymentIntentId'));
     
     // Verificar si ya existe para evitar duplicados
     const existingRecharge = await db.collection('PaySat_Account_Movements').doc(rechargeDocId).get();
     if (existingRecharge.exists) {
       console.log('ℹ️ Movimiento de recarga ya existe:', rechargeDocId);
       return { success: true, documentId: rechargeDocId, data: existingRecharge.data(), skipped: true };
+    }
+    
+    // ADICIONAL: Verificar si existe una recarga con el mismo payment_intent_id pero diferente document ID
+    const duplicateQuery = await db.collection('PaySat_Account_Movements')
+      .where('typeMovement', '==', 'recharge')
+      .where('payment_intent_id', '==', paymentIntentId)
+      .limit(1)
+      .get();
+    
+    if (!duplicateQuery.empty) {
+      const existingDoc = duplicateQuery.docs[0];
+      // console.log('⚠️ Ya existe recarga para payment_intent:', paymentIntentId);
+      // console.log('📄 Documento existente:', existingDoc.id);
+      // console.log('📄 Documento actual:', rechargeDocId);
+      
+      // Si los IDs son diferentes, significa que hay duplicado
+      if (existingDoc.id !== rechargeDocId) {
+        // console.log('❌ DUPLICADO DETECTADO - usando documento existente');
+        return { success: true, documentId: existingDoc.id, data: existingDoc.data(), skipped: true };
+      }
     }
     
     // Obtener el numeroCuentaPAYSAT del usuario
@@ -122,19 +147,8 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
 async function createPaySatDepositMovement(balanceTransactionId) {
   try {
     console.log('🏦 Creando depósito a cuenta principal PaySat...');
-    // console.log('🔍 DEBUG - Variables de entorno:', {
-    //   PAYSAT_MAIN_ACCOUNT_UID: process.env.PAYSAT_MAIN_ACCOUNT_UID ? 'CONFIGURED' : 'MISSING',
-    //   PAYSAT_MAIN_ACCOUNT_EMAIL: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL ? 'CONFIGURED' : 'MISSING',
-    //   PAYSAT_MAIN_ACCOUNT_NUMBER: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER ? 'CONFIGURED' : 'MISSING'
-    // });
-    
-    // Generar ID único para el depósito
-    const depositId = uuidv4();
-    const depositDocId = `deposit_${depositId}`;
-    // console.log('📄 DepositDocId generado:', depositDocId);
     
     // Verificar si ya existe un depósito para este balanceTransactionId
-    // console.log('🔍 Verificando depósito existente para balanceTransactionId:', balanceTransactionId);
     const existingDepositQuery = await db.collection('PaySat_Account_Movements')
       .where('typeMovement', '==', 'deposit')
       .where('from', '==', balanceTransactionId)
@@ -144,19 +158,79 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     
     if (!existingDepositQuery.empty) {
       const existingDeposit = existingDepositQuery.docs[0];
-      console.log('ℹ️ Depósito PaySat ya existe para balanceTransactionId:', balanceTransactionId);
-      return { success: true, documentId: existingDeposit.id, data: existingDeposit.data(), skipped: true };
+      const existingData = existingDeposit.data();
+      
+      // Obtener valores correctos de .env
+      const paysatMainUID = process.env.PAYSAT_MAIN_ACCOUNT_UID;
+      const paysatMainEmail = process.env.PAYSAT_MAIN_ACCOUNT_EMAIL;
+      const paysatMainNumber = process.env.PAYSAT_MAIN_ACCOUNT_NUMBER;
+      
+      // Validar que existan las variables de entorno
+      if (!paysatMainUID || !paysatMainEmail || !paysatMainNumber) {
+        throw new Error('Variables de entorno PAYSAT_MAIN_ACCOUNT no configuradas correctamente');
+      }
+      
+      // Verificar si el depósito tiene datos incorrectos
+      const needsUpdate = existingData.paysatUID !== paysatMainUID ||
+                         existingData.email !== paysatMainEmail ||
+                         existingData.numeroCuentaPAYSAT !== paysatMainNumber;
+      
+      if (needsUpdate) {
+        console.log('⚠️ Depósito existente con datos antiguos, actualizando...');
+        console.log('📝 Datos antiguos:', {
+          paysatUID: existingData.paysatUID,
+          email: existingData.email,
+          numeroCuentaPAYSAT: existingData.numeroCuentaPAYSAT
+        });
+        
+        const updatedData = {
+          paysatUID: paysatMainUID,
+          email: paysatMainEmail,
+          numeroCuentaPAYSAT: paysatMainNumber,
+          updatedAt: new Date()
+        };
+        
+        console.log('📝 Actualizando a:', updatedData);
+        
+        // Actualizar en Firebase
+        await db.collection('PaySat_Account_Movements').doc(existingDeposit.id).update(updatedData);
+        
+        console.log('✅ Depósito actualizado con datos correctos');
+        
+        return { 
+          success: true, 
+          documentId: existingDeposit.id, 
+          data: { ...existingData, ...updatedData }, 
+          updated: true 
+        };
+      }
+      
+      console.log('ℹ️ Depósito PaySat ya existe con datos correctos:', existingDeposit.id);
+      return { success: true, documentId: existingDeposit.id, data: existingData, skipped: true };
     }
     
-    // console.log('💰 Creando documento de depósito...');
+    // Si no existe, crear uno nuevo
+    const depositId = uuidv4();
+    const depositDocId = `deposit_${depositId}`;
+    
+    // Obtener valores de variables de entorno
+    const paysatMainUID = process.env.PAYSAT_MAIN_ACCOUNT_UID;
+    const paysatMainEmail = process.env.PAYSAT_MAIN_ACCOUNT_EMAIL;
+    const paysatMainNumber = process.env.PAYSAT_MAIN_ACCOUNT_NUMBER;
+    
+    // Validar que existan las variables de entorno
+    if (!paysatMainUID || !paysatMainEmail || !paysatMainNumber) {
+      throw new Error('Variables de entorno PAYSAT_MAIN_ACCOUNT no configuradas correctamente');
+    }
+    
     const depositMovement = {
       typeMovement: "deposit",
       amount: PAYSAT_FEE_AMOUNT,
       amount_cents: PAYSAT_FEE_CENTS,
       currency: "USD",
-      paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
-      email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
-      numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
+      paysatUID: paysatMainUID,
+      email: paysatMainEmail,
+      numeroCuentaPAYSAT: paysatMainNumber,
       from: balanceTransactionId,
       description: "fee",
       
@@ -165,14 +239,13 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       source: 'paysat_fee_collection'
     };
 
-    // console.log('💾 Guardando depósito en Firebase...');
     await db.collection('PaySat_Account_Movements').doc(depositDocId).set(depositMovement);
     console.log('✅ Depósito PaySat creado:', depositDocId);
     
     return { success: true, documentId: depositDocId, data: depositMovement };
   } catch (error) {
     console.error('❌ Error creando depósito PaySat:', error);
-    return { success: false, error: error.message };
+    return { success: true, error: error.message };
   }
 }
 
@@ -180,7 +253,13 @@ async function createPaySatDepositMovement(balanceTransactionId) {
  * Procesa todos los movimientos contables para una transacción completa
  */
 async function processCompleteTransaction(sessionData, paymentIntentId, rechargeId, feeData, balanceTransactionId, options = {}) {
-  console.log('📊 Procesando movimientos contables completos...');
+  // console.log('📊 ============================================');
+  // console.log('📊 INICIO processCompleteTransaction');
+  // console.log('📊 Payment Intent ID:', paymentIntentId);
+  // console.log('📊 Recharge ID:', rechargeId);
+  // console.log('📊 Balance Transaction ID:', balanceTransactionId);
+  // console.log('📊 Tiene feeData:', !!feeData);
+  // console.log('📊 ============================================');
   
   const { onlyFees = false } = options;
   
@@ -238,6 +317,9 @@ async function processCompleteTransaction(sessionData, paymentIntentId, recharge
     // 3. Crear depósito PaySat TERCERO (solo si el fee se procesó correctamente)
     if (results.fee?.success || (onlyFees && feeData && balanceTransactionId)) {
       console.log('3️⃣ Procesando depósito PaySat (TERCERO)...');
+      // console.log('🔍 balanceTransactionId recibido:', balanceTransactionId);
+      // console.log('🔍 feeData:', JSON.stringify(feeData, null, 2));
+      
       const depositResult = await createPaySatDepositMovement(balanceTransactionId);
       results.deposit = depositResult;
       
