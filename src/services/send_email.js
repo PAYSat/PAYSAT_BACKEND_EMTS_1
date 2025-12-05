@@ -7,6 +7,7 @@ class EmailService {
     /**
      * Genera el HTML para el email de activación de tarjeta virtual
      * @param {Object} data
+     * @param {string} data.email
      * @param {string} data.userName
      * @param {number} data.amount
      * @param {string} data.currency
@@ -29,7 +30,7 @@ class EmailService {
             .header { background: #4F46E5; color: white; padding: 24px; text-align: center; }
             .content { padding: 32px; background: #f8f9fa; }
             .success-icon { font-size: 48px; color: #10B981; text-align: center; margin: 20px 0; }
-            .amount { font-size: 32px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
+            .amount { font-size: 24px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
             .amount-label { font-size: 15px; color: #6B7280; text-align: center; margin-top: -15px; }
             .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .benefits { background: #EEF2FF; padding: 18px; border-radius: 8px; margin: 24px 0; }
@@ -46,11 +47,11 @@ class EmailService {
               <p>Bienvenido a la nueva era de pagos digitales</p>
             </div>
             <div class="content">
-              <div class="success-icon">🎉</div>
+              <!--<div class="success-icon">🎉</div>-->
               <h2 style="text-align: center; color: #374151;">¡Tu tarjeta virtual PAYSAT está lista para usar!</h2>
               <p>Hola <strong>${data.userName || 'Usuario'}</strong>,</p>
               <p>Has activado exitosamente tu tarjeta virtual <strong>${data.cardBrand || 'Mastercard'}</strong> terminada en <strong>${data.cardLast4 || '****'}</strong>.</p>
-              <div class="amount">-$${formattedAmount} ${data.currency}</div>
+              <div class="amount">$${formattedAmount} ${data.currency}</div>
               <div class="amount-label">Costo descontado de tu cuenta PaySat</div>
               <div class="details">
                 <h3>Detalles de la activación:</h3>

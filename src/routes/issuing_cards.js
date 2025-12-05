@@ -63,13 +63,14 @@ router.post('/virtual', async (req, res) => {
     const depositDocId = `deposit_virtual_card_${uuidv4()}`;
     
     // HARDCODED TEMPORALMENTE - VALORES CORRECTOS
-    const CORRECT_UID = '93xxiCL2qJX91rxnPy2PaBsxrWo1';
-    const CORRECT_EMAIL = 'paysat.account@paysatmoney.com';
-    const CORRECT_NUMBER = 'JS5670370';
+    // const CORRECT_UID = '93xxiCL2qJX91rxnPy2PaBsxrWo1';
+    // const CORRECT_EMAIL = 'paysat.account@paysatmoney.com';
+    // const CORRECT_NUMBER = 'JS5670370';
     
-    console.log('🔍 DEBUG issuing_cards - Valores hardcodeados:', {
-      CORRECT_UID, CORRECT_EMAIL, CORRECT_NUMBER
-    });
+    // console.log('🔍 DEBUG issuing_cards - Valores hardcodeados:', {
+    //   CORRECT_UID, CORRECT_EMAIL, CORRECT_NUMBER
+    // });
+
     console.log('⚠️ DEBUG issuing_cards - Variables de entorno:', {
       PAYSAT_MAIN_ACCOUNT_UID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
       PAYSAT_MAIN_ACCOUNT_EMAIL: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
@@ -81,9 +82,9 @@ router.post('/virtual', async (req, res) => {
       amount: costParsed,
       amount_cents: amountCents,
       currency: 'USD',
-      paysatUID: CORRECT_UID,
-      email: CORRECT_EMAIL,
-      numeroCuentaPAYSAT: CORRECT_NUMBER,
+      paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
+      email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
+      numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
       from: 'Deposit_PAYSAT_Virtual_Card',
       description: `Emission_PAYSAT_Virtual_Card usr: ${paysatUID}`,
       createdAt: now,
@@ -92,30 +93,44 @@ router.post('/virtual', async (req, res) => {
     });
 
     // 2.3 Registrar tarjeta en una colección “friendly” si quieres
+    // Obtener información de tarjetas del usuario
+    const cardData = await db.collection('Stripe_Issuing_Cards')
+      .where('paysatUID', '==', paysatUID)
+      .get();
+
+
     await db.collection('PaySat_Cards').doc(card.id).set({
       paysatUID,
       provider: 'stripe_issuing',
       card,
+      name: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',
       createdAt: now,
     });
 
     // 3. Enviar correo de confirmación al usuario
     try {
-      // Obtener información de tarjetas del usuario
-      const cardData = await db.collection('Stripe_Issuing_Cards')
-        .where('paysatUID', '==', paysatUID)
-        .get();
+      
+
+      // Formatear fecha en español, ejemplo: 4 de diciembre de 2025, 21:15
+      const fechaFormateada = now.toLocaleString('es-ES', {
+        timeZone: 'America/Guayaquil',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
 
       const { emailService } = await import('../services/send_email.js');
       await emailService.sendCardActivationEmail({
-        userData,        
+        email: userEmail,
         userName: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',        
         amount: costParsed,
         currency: 'USD',
         numeroCuentaPAYSAT: userAccountNumber,
         cardLast4: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
         cardBrand: cardData.empty ? '' : cardData.docs[0].data().stripeCard["brand"] || '',
-        fecha: cardData.empty ? '' : cardData.docs[0].data().createdAt || '',
+        fecha: fechaFormateada,
       });
     } catch (emailError) {
       console.error('❌ Error enviando email de tarjeta virtual:', emailError);
