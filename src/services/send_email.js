@@ -4,6 +4,125 @@ import { transporter, emailConfig } from '../config/email.js';
  * Servicio para envío de diferentes tipos de correos
  */
 class EmailService {
+    /**
+     * Genera el HTML para el email de activación de tarjeta virtual
+     * @param {Object} data
+     * @param {string} data.userName
+     * @param {number} data.amount
+     * @param {string} data.currency
+     * @param {string} data.numeroCuentaPAYSAT
+     * @param {string} data.cardLast4
+     * @param {string} data.cardBrand
+     * @param {string} data.fecha
+     */
+    generateCardActivationHTML(data) {
+      const formattedAmount = parseFloat(data.amount).toFixed(2);
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>¡Tu tarjeta virtual está activa! - PAYSAT</title>
+          <style>
+            .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+            .header { background: #4F46E5; color: white; padding: 24px; text-align: center; }
+            .content { padding: 32px; background: #f8f9fa; }
+            .success-icon { font-size: 48px; color: #10B981; text-align: center; margin: 20px 0; }
+            .amount { font-size: 32px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
+            .amount-label { font-size: 15px; color: #6B7280; text-align: center; margin-top: -15px; }
+            .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .benefits { background: #EEF2FF; padding: 18px; border-radius: 8px; margin: 24px 0; }
+            .benefit { margin-bottom: 10px; font-size: 15px; color: #374151; }
+            .footer { background: #374151; color: white; padding: 20px; text-align: center; font-size: 12px; }
+            .button { background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="success-icon">💳</div>
+              <h1>¡Tarjeta virtual activada!</h1>
+              <p>Bienvenido a la nueva era de pagos digitales</p>
+            </div>
+            <div class="content">
+              <div class="success-icon">🎉</div>
+              <h2 style="text-align: center; color: #374151;">¡Tu tarjeta virtual PAYSAT está lista para usar!</h2>
+              <p>Hola <strong>${data.userName || 'Usuario'}</strong>,</p>
+              <p>Has activado exitosamente tu tarjeta virtual <strong>${data.cardBrand || 'Mastercard'}</strong> terminada en <strong>${data.cardLast4 || '****'}</strong>.</p>
+              <div class="amount">-$${formattedAmount} ${data.currency}</div>
+              <div class="amount-label">Costo descontado de tu cuenta PaySat</div>
+              <div class="details">
+                <h3>Detalles de la activación:</h3>
+                <p><strong>Número de cuenta:</strong> ${data.numeroCuentaPAYSAT}</p>
+                <p><strong>Fecha de activación:</strong> ${data.fecha}</p>
+                <p><strong>Estado:</strong> Activa ✅</p>
+              </div>
+              <div class="benefits">
+                <h3 style="color:#4F46E5;">Beneficios de tu tarjeta virtual:</h3>
+                <div class="benefit">✔️ Seguridad total: Úsala sin exponer tu tarjeta física.</div>
+                <div class="benefit">✔️ Aceptada en miles de comercios online y apps.</div>
+                <div class="benefit">✔️ Control inmediato: Bloquea, recarga y consulta movimientos desde la app.</div>
+                <div class="benefit">✔️ Sin anualidad ni cargos ocultos.</div>
+                <div class="benefit">✔️ Compatible con billeteras digitales (Google Pay, Apple Pay, etc).</div>
+              </div>
+              <p style="text-align:center;">¡Empieza a disfrutar de la libertad y seguridad de PAYSAT!</p>
+              <div style="text-align:center;">
+                <a href="https://paysatmoney.com" class="button">Ir a mi cuenta</a>
+              </div>
+              <p style="font-size: 13px; color: #6B7280; text-align:center; margin-top:20px;">¿Tienes dudas? Nuestro equipo de soporte está listo para ayudarte.</p>
+            </div>
+            <div class="footer">
+              <p>Este es un email automático, por favor no respondas.</p>
+              <p>Si tienes dudas, contacta nuestro soporte: ${emailConfig.supportEmail}</p>
+              <p>&copy; 2025 PAYSAT. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+    }
+    /**
+     * Envía email de activación de tarjeta virtual
+     * @param {Object} data - Datos de la activación
+     * @param {string} data.email
+     * @param {string} data.userName
+     * @param {number} data.amount
+     * @param {string} data.currency
+     * @param {string} data.numeroCuentaPAYSAT
+     * @param {string} data.cardLast4
+     * @param {string} data.cardBrand
+     * @param {string} data.fecha
+     */
+    async sendCardActivationEmail(data) {
+      try {
+        const { email, userName, amount, currency = 'USD', numeroCuentaPAYSAT, cardLast4, cardBrand, fecha } = data;
+        if (!email) {
+          return { success: false, error: 'Email de destino requerido' };
+        }
+        const htmlContent = this.generateCardActivationHTML({
+          userName,
+          amount,
+          currency,
+          numeroCuentaPAYSAT,
+          cardLast4,
+          cardBrand,
+          fecha
+        });
+        const mailOptions = {
+          from: `${emailConfig.company} <${emailConfig.from}>`,
+          to: email,
+          subject: '💳 ¡Tu tarjeta virtual PAYSAT está activa!',
+          html: htmlContent
+        };
+        const result = await transporter.sendMail(mailOptions);
+        console.log('✅ Email de activación de tarjeta enviado exitosamente - ID:', result.messageId);
+        return { success: true, messageId: result.messageId, email };
+      } catch (error) {
+        console.error('❌ Error enviando email de activación de tarjeta:', error);
+        return { success: false, error: error.message };
+      }
+    }
   
   /**
    * Envía email de confirmación de recarga exitosa

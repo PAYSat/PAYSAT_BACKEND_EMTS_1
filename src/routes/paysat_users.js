@@ -572,7 +572,7 @@ router.get('/cards/transactions/balance/:paysatUID', async (_req, res) => {
     });
 
     // Obtener información de tarjetas del usuario
-    const cardData = await db.collection('Stripe_Cards')
+    const cardData = await db.collection('Stripe_Issuing_Cards')
       .where('paysatUID', '==', paysatUID)
       .get();
 
@@ -583,8 +583,8 @@ router.get('/cards/transactions/balance/:paysatUID', async (_req, res) => {
       ok: true,      
       data: {
         balance: saldoTotal,
-        nameCard: cardData.empty ? '' : cardData.docs[0].data().nameCard || '',
-        cardNumber: cardData.empty ? '' : cardData.docs[0].data().card_data["last_four"] || '',
+        nameCard: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',
+        cardNumber: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
       }      
     });
 

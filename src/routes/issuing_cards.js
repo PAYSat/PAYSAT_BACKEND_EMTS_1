@@ -99,6 +99,28 @@ router.post('/virtual', async (req, res) => {
       createdAt: now,
     });
 
+    // 3. Enviar correo de confirmación al usuario
+    try {
+      // Obtener información de tarjetas del usuario
+      const cardData = await db.collection('Stripe_Issuing_Cards')
+        .where('paysatUID', '==', paysatUID)
+        .get();
+
+      const { emailService } = await import('../services/send_email.js');
+      await emailService.sendCardActivationEmail({
+        userData,        
+        userName: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',        
+        amount: costParsed,
+        currency: 'USD',
+        numeroCuentaPAYSAT: userAccountNumber,
+        cardLast4: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
+        cardBrand: cardData.empty ? '' : cardData.docs[0].data().stripeCard["brand"] || '',
+        fecha: cardData.empty ? '' : cardData.docs[0].data().createdAt || '',
+      });
+    } catch (emailError) {
+      console.error('❌ Error enviando email de tarjeta virtual:', emailError);
+    }
+
     return res.status(201).json({
       ok: true,
       card,
