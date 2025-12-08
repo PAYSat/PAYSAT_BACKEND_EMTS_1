@@ -582,6 +582,7 @@ router.get('/cards/transactions/balance/:paysatUID', async (_req, res) => {
     res.json({
       ok: true,      
       data: {
+        cardId: cardData.empty ? '' : cardData.docs[0].data().stripeCard["id"] || '',
         balance: saldoTotal,
         nameCard: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',
         cardNumber: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
