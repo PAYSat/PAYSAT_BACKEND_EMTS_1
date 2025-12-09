@@ -18,11 +18,17 @@ router.get('/view', (req, res) => {
     return res.status(500).send('Missing STRIPE_PUBLISHABLE_KEY');
   }
 
+  // ✅ Configurar CSP como header HTTP (más prioritario que meta tag)
+  res.setHeader(
+    'Content-Security-Policy',
+    "script-src 'self' https://js.stripe.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+  );
+
   const html = `<!DOCTYPE html>
                 <html>
                   <head>
                     <meta charset="UTF-8" />
-                    <title>PAYSAT – Tarjeta virtual</title>
+                    <title>PAYSAT - Tarjeta virtual</title>
                     <script src="https://js.stripe.com/v3/"></script>
                     <style>
                       * { box-sizing: border-box; }

@@ -14,8 +14,14 @@ import paymentsRouter from './routes/payments.js';
 import stripeFeesRoutes from './routes/stripe_fees.routes.js';
 import usersFirebaseRouter from './routes/paysat_users.js';
 import queriesFirebaseRouter from './routes/paysat_queries.js';
+import stripeTopupsRouter from './routes/stripeTopups.js';
+
+// TESTING
+import issuingTestRouter from "./routes/issuingTest.js";
+
 
 // 🔥 NUEVAS rutas para Stripe Issuing
+import stripeIssuingAuthWebhook from './webhooks/stripeIssuingAuthWebhook.js';
 import issuingCardsRouter from './routes/issuing_cards.js';
 import issuingEphemeralKeysRouter from './routes/issuing_ephemeral_keys.js';
 import secureCardsViewRouter from './routes/secure_cards_view.js';
@@ -31,6 +37,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // ====== Webhooks (ANTES de autenticación y ANTES de JSON parser) ======
 // Los webhooks manejan su propio raw body parser internamente
 app.use('/webhooks/stripe', stripeWebhookRouter);
+app.use('/webhooks/stripe-issuing-auth', stripeIssuingAuthWebhook);
 
 // JSON para el resto de rutas
 app.use(express.json({ limit: '2mb' }));
@@ -45,10 +52,14 @@ app.use('/auth', authRouter);
 app.use('/api/cards', issuingCardsRouter);                   // POST /api/cards/virtual
 app.use('/api/issuing/ephemeral-keys', issuingEphemeralKeysRouter); // POST para Issuing Elements
 
+// TESTING Issuing
+app.use("/api/issuing", issuingTestRouter);
+
 // Rutas Stripe admin (ya existentes)
 app.use('/api/stripe', stripeAdminRouter);
 app.use('/api/payments', paymentsRouter);   //<--- Stripe payments endpoints
 app.use('/api/stripe/fees', stripeFeesRoutes);
+app.use('/api/topups', stripeTopupsRouter);
 
 // Consultas usuarios Firebase (paysat_users)
 app.use('/api/paysat/users', usersFirebaseRouter);

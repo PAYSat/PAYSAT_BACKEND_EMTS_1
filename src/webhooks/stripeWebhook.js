@@ -10,6 +10,118 @@ import { getUserAccountNumber } from '../services/paysat_service.js';
 
 const router = Router();
 
+// ---- Issuing helpers (duplicated here so the main webhook can handle Issuing events too) ----
+async function updateSimulation(authId, data) {
+  try {
+    const simQuery = await db.collection('Stripe_Simulations_Temp')
+      .where('authorizationId', '==', authId)
+      .limit(1)
+      .get();
+    
+    if (!simQuery.empty) {
+      const simDoc = simQuery.docs[0];
+      await simDoc.ref.update(data);
+      console.log('💾 Simulación actualizada (main webhook):', simDoc.id);
+    }
+  } catch (err) {
+    console.error('⚠️ Error actualizando simulación (main webhook):', err.message);
+  }
+}
+
+async function handleIssuingAuthorization(event) {
+  const auth = event.data.object;
+  const amountCents = auth.amount;
+  const amount = amountCents / 100;
+  const currency = auth.currency;
+  const cardholderId = auth.cardholder;
+  const cardId = auth.card;
+  console.log('💳 Issuing auth (main webhook):', { authId: auth.id, cardId, cardholderId, amount, currency, status: auth.status });
+
+  // Si ya está aprobada o rechazada, no hacer nada
+  if (auth.status !== 'pending') {
+    console.log(`ℹ️ Authorization ${auth.id} ya está en estado ${auth.status}, omitiendo (main webhook)`);
+    return;
+  }
+
+  // 1. Mapear cardholder → usuario PAYSAT (por metadata)
+  const cardholder = await stripe.issuing.cardholders.retrieve(cardholderId);
+  console.log('👤 Cardholder data (main webhook):', {
+    id: cardholder.id,
+    name: cardholder.name,
+    email: cardholder.email,
+    metadata: cardholder.metadata,
+  });
+  
+  const paysatUID = cardholder.metadata?.paysatUID;
+
+  if (!paysatUID) {
+    console.log('⚠️ cardholder sin paysatUID, declinando (main webhook)');
+    await stripe.issuing.authorizations.decline(auth.id, {
+      metadata: { decline_reason: 'no_paysat_uid' },
+    });
+    
+    await updateSimulation(auth.id, {
+      webhookProcessed: true,
+      approved: false,
+      declineReason: 'no_paysat_uid',
+      processedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // 2. Leer saldo virtual del usuario en Firestore
+  const userRef = db.collection('PaySat_Users').doc(paysatUID);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    console.log('⚠️ Usuario PAYSAT no encontrado, declinando (main webhook). UID buscado:', paysatUID);
+    await stripe.issuing.authorizations.decline(auth.id, {
+      metadata: { decline_reason: 'user_not_found' },
+    });
+    
+    await updateSimulation(auth.id, {
+      webhookProcessed: true,
+      approved: false,
+      declineReason: 'user_not_found',
+      paysatUID: paysatUID,
+      processedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const userData = userSnap.data();
+  const currentBalance = parseFloat(userData.saldoPAYSAT || 0);
+
+  console.log(`🏦 Saldo PAYSAT actual de ${paysatUID}: ${currentBalance} (main webhook)`);
+
+  // 3. Lógica: solo aprobar si el usuario tiene saldo suficiente
+  if (currentBalance >= amount) {
+    await stripe.issuing.authorizations.approve(auth.id);
+    console.log('✅ Autorización aprobada (main webhook)');
+
+    await updateSimulation(auth.id, {
+      webhookProcessed: true,
+      approved: true,
+      paysatUID: paysatUID,
+      userBalance: currentBalance,
+      processedAt: new Date().toISOString(),
+    });
+  } else {
+    console.log('❌ Saldo insuficiente, declinando (main webhook). Saldo:', currentBalance, 'Monto:', amount);
+    await stripe.issuing.authorizations.decline(auth.id, {
+      metadata: { decline_reason: 'insufficient_funds' },
+    });
+    
+    await updateSimulation(auth.id, {
+      webhookProcessed: true,
+      approved: false,
+      declineReason: 'insufficient_funds',
+      paysatUID: paysatUID,
+      userBalance: currentBalance,
+      processedAt: new Date().toISOString(),
+    });
+  }
+}
+
 // Función helper para mapear fees payload
 function mapFeePayload(bt) {
   if (!bt) return null;
@@ -135,24 +247,12 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
   console.log(`📋 Event ID: ${event.id}`);
 
   try {
-    // Guardar evento en Firebase
-    // const webhookEventRef = db.collection('webhook_events').doc(event.id);
-    // const eventSnapshot = await webhookEventRef.get();
+    // Manejo de eventos Issuing (fallback cuando Stripe envía Issuing a este webhook)
+    if (event.type === 'issuing_authorization.request' || event.type === 'issuing_authorization.created') {
+      await handleIssuingAuthorization(event);
+      return res.json({ received: true, source: 'issuing_fallback' });
+    }
 
-    // if (eventSnapshot.exists) {
-    //   console.log('⚠️ Evento duplicado detectado, ignorando:', event.id);
-    //   return res.json({ received: true, status: 'duplicate' });
-    // }
-
-    // await webhookEventRef.set({
-    //   event_id: event.id,
-    //   event_type: event.type,
-    //   created: new Date(event.created * 1000),
-    //   processed: false,
-    //   payload: JSON.parse(JSON.stringify(event))
-    // });
-
-    // Procesar según el tipo de evento
     switch (event.type) {
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object;
@@ -167,11 +267,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
         if (sessionQuery.empty) {
           console.log('⚠️ No se encontró sesión para payment_intent:', paymentIntent.id);
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   error: 'No session found',
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'no_session' });
         }
 
@@ -185,11 +280,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         // Verificar si ya fue procesado
         if (sessionData.payment_processed === true) {
           console.log('✅ Payment_intent ya procesado previamente');
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   duplicate: true,
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'already_processed' });
         }
 
@@ -207,13 +297,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         console.log('⏳ Esperando 2 segundos para que Stripe genere el charge...');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Marcar evento como procesado
-        // await webhookEventRef.update({
-        //   processed: true,
-        //   processedAt: new Date(),
-        //   session_id: sessionId
-        // });
-
         console.log('✅ payment_intent.succeeded procesado completamente');
         break;
       }
@@ -226,12 +309,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
         if (!charge.payment_intent) {
           console.log('⚠️ Charge sin payment_intent asociado, ignorando');
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   skipped: true,
-          //   reason: 'No payment_intent',
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'no_payment_intent' });
         }
 
@@ -243,11 +320,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
         if (sessionQuery.empty) {
           console.log('⚠️ No se encontró sesión para charge:', charge.id);
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   error: 'No session found',
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'no_session' });
         }
 
@@ -264,11 +336,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         // Verificar si el charge ya fue procesado
         if (sessionData.charge_processed === true) {
           console.log('✅ Charge ya procesado previamente');
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   duplicate: true,
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'already_processed' });
         }
 
@@ -281,6 +348,35 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         });
 
         console.log('✅ Charge marcado como procesado para evitar duplicados');
+
+        // 🔹 NUEVO: ajustar monto de depósito usando metadata.userAmount (topup PAYSAT)
+        let depositAmountCents = charge.amount;
+        let depositAmount = centsToAmount(charge.amount);
+
+        try {
+          const paymentIntent = await stripe.paymentIntents.retrieve(charge.payment_intent);
+          const meta = paymentIntent.metadata || {};
+
+          if (meta.intent_type === 'paysat_topup') {
+            const userAmountRaw = meta.userAmount;
+            const userAmount = parseFloat(userAmountRaw);
+
+            if (!isNaN(userAmount) && userAmount > 0) {
+              depositAmountCents = Math.round(userAmount * 100);
+              depositAmount = parseFloat(userAmount.toFixed(2));
+              console.log('💰 Usando userAmount desde metadata para depósito PAYSAT:', {
+                userAmount,
+                depositAmountCents,
+              });
+            } else {
+              console.log('⚠️ userAmount inválido en metadata, se mantiene charge.amount');
+            }
+          } else {
+            console.log('ℹ️ PaymentIntent no es paysat_topup, se usa charge.amount');
+          }
+        } catch (piError) {
+          console.error('⚠️ No se pudo obtener PaymentIntent para ajustar depósito:', piError);
+        }
 
         // Obtener balance transaction para fees
         let balanceTransaction = null;
@@ -339,25 +435,18 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           }
         }
 
-        // Verificar si los fees ya fueron procesados        // Verificar si los fees ya fueron procesados
+        // Verificar si los fees ya fueron procesados
         const feeAlreadyProcessed = await checkIfFeeProcessed(charge.payment_intent, rechargeId);
 
         if (feeAlreadyProcessed) {
           console.log('✅ Fees ya procesados, saltando procesamiento de movimientos');
           
-          // Actualizar sesión
           await db.collection('Stripe_Payments_Sessions').doc(sessionId).update({
             charge_processed: true,
             charge_id: charge.id,
             charge_processed_at: new Date(),
             updated_at: new Date()
           });
-
-            // await webhookEventRef.update({
-            //   processed: true,
-            //   duplicate_fees: true,
-            //   processedAt: new Date()
-            // });
 
           return res.json({ received: true, status: 'fees_already_processed' });
         }
@@ -366,17 +455,11 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         const userDoc = await db.collection('PaySat_Users').doc(paysatUID).get();
         if (!userDoc.exists) {
           console.error('❌ Usuario no encontrado:', paysatUID);
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   error: 'User not found',
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'user_not_found' });
         }
 
         const userData = userDoc.data();
         
-        // Obtener nombre y email con los campos correctos de Firebase
         const userName = userData.nombreCompleto || 
                         userData.nombres || 
                         userData.primerNombre ||
@@ -392,19 +475,14 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           console.log('🏦 Cuenta del usuario:', userAccountNumber);
         } catch (accountError) {
           console.error('❌ Error obteniendo número de cuenta:', accountError);
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   error: `Account number error: ${accountError.message}`,
-          //   processedAt: new Date()
-          // });
           return res.json({ received: true, status: 'account_error', error: accountError.message });
         }
 
         // Preparar datos de sesión para movimientos
         const sessionMovementData = {
           paysatUID,
-          amount_cents: charge.amount,
-          amount: centsToAmount(charge.amount),
+          amount_cents: depositAmountCents,    // 🔹 AHORA usa userAmount (si es topup)
+          amount: depositAmount,              // 🔹 y no directamente charge.amount
           currency: charge.currency,
           charge_id: charge.id,
           userEmail: userEmail,
@@ -417,17 +495,8 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           }
         };
 
-        // console.log('📦 ============================================');
         console.log('📦 Procesando transacción completa...');
-        // console.log('📦 Event ID:', event.id);
-        // console.log('📦 Event Type:', event.type);
-        // console.log('📦 Charge ID:', charge.id);
-        // console.log('📦 Payment Intent:', charge.payment_intent);
-        // console.log('📦 Balance Transaction ID:', feeData?.balanceTransactionId || 'N/A');
-        // console.log('📦 ============================================');
-        
-        // Procesar transacción completa (fees + charge + deposit)
-        // Firma: processCompleteTransaction(sessionData, paymentIntentId, rechargeId, feeData, balanceTransactionId, options)
+
         const balanceTransactionId = feeData?.balanceTransactionId || null;
         const result = await processCompleteTransaction(
           sessionMovementData,
@@ -436,30 +505,10 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           feeData,
           balanceTransactionId
         );
-        
-        // console.log('📦 Resultado de processCompleteTransaction:', JSON.stringify(result, null, 2));
-        // console.log('📦 ============================================');
 
         if (!result.success) {
           const errorMessage = result.error || 'Error desconocido en procesamiento';
           console.error('❌ Error procesando transacción:', errorMessage);
-          
-          // await db.collection('webhook_errors').add({
-          //   event_id: event.id,
-          //   event_type: event.type,
-          //   error: errorMessage,
-          //   payment_intent_id: charge.payment_intent,
-          //   charge_id: charge.id,
-          //   paysatUID,
-          //   timestamp: new Date()
-          // });
-
-          // await webhookEventRef.update({
-          //   processed: true,
-          //   error: errorMessage,
-          //   processedAt: new Date()
-          // });
-
           return res.status(500).json({ received: true, status: 'processing_error', error: errorMessage });
         }
 
@@ -470,7 +519,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           deposit: result.deposit?.documentId
         });
 
-        // Construir resumen de movimientos
         const movementsSummary = {
           recharge_id: result.recharge?.documentId || null,
           fee_id: result.fee?.documentId || null,
@@ -478,13 +526,12 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           success: result.success
         };
 
-        // Actualizar sesión con resumen de movimientos
         await db.collection('Stripe_Payments_Sessions').doc(sessionId).update({
           movements_summary: movementsSummary,
           updated_at: new Date()
         });
 
-        // Enviar email de confirmación SOLO si hay feeData completo
+        // Envío de email (igual que antes)
         if (feeData && feeData.totalFee && feeData.net) {
           try {
             console.log('📧 Enviando email de confirmación...');
@@ -506,19 +553,8 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
             }
           } catch (emailError) {
             console.error('❌ Error enviando email:', emailError);
-            // No fallar el webhook por error en email
           }
-        } else {
-          //console.log('⚠️ No se envía email - feeData incompleto:', { hasFeeData: !!feeData, totalFee: feeData?.totalFee, net: feeData?.net });
         }
-
-        // Marcar evento como procesado
-        // await webhookEventRef.update({
-        //   processed: true,
-        //   processedAt: new Date(),
-        //   session_id: sessionId,
-        //   movements_summary: movementsSummary
-        // });
 
         console.log('✅ charge.succeeded procesado completamente');
         break;
@@ -526,25 +562,11 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
       default:
         console.log(`ℹ️ Evento no manejado: ${event.type}`);
-        // await webhookEventRef.update({
-        //   processed: true,
-        //   skipped: true,
-        //   reason: 'Event type not handled',
-        //   processedAt: new Date()
-        // });
     }
 
     res.json({ received: true });
   } catch (error) {
     console.error('❌ Error procesando webhook:', error);
-    
-    // await db.collection('webhook_errors').add({
-    //   event_id: event.id,
-    //   event_type: event.type,
-    //   error: error.message,
-    //   stack: error.stack,
-    //   timestamp: new Date()
-    // });
 
     res.status(500).json({ 
       received: true, 
