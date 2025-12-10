@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../config/firebase.js';
-import { createVirtualCardForUser } from '../services/stripeIssuingService.js';
+import { createVirtualCardForUser, CardholderRequirementsError } from '../services/stripeIssuingService.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -35,9 +35,14 @@ router.post('/virtual', async (req, res) => {
 
     const userEmail = userData.correo || 'email@not.found';
     const userAccountNumber = userData.numeroCuentaPAYSAT || 'N/A';
+    const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || '0.0.0.0';
+    const termsAcceptance = {
+      ip: clientIp,
+      date: Math.floor(Date.now() / 1000),
+    };
 
     // 1) Crear tarjeta virtual en Stripe Issuing
-    const card = await createVirtualCardForUser(paysatUID);
+    const card = await createVirtualCardForUser(paysatUID, { termsAcceptance });
 
     const amountCents = toCents(costParsed);
     const now = new Date();
@@ -141,6 +146,18 @@ router.post('/virtual', async (req, res) => {
       card,
     });
   } catch (e) {
+    if (e instanceof CardholderRequirementsError) {
+      console.error('⚠️ Cardholder con requisitos pendientes:', e.requirements);
+      return res.status(409).json({
+        ok: false,
+        error: e.message,
+        code: e.code,
+        cardholderId: e.cardholderId,
+        requirements: e.requirements,
+        status: e.status,
+      });
+    }
+
     console.error('❌ Error en /api/cards/virtual:', e);
     return res.status(500).json({ ok: false, error: e.message || 'Internal server error' });
   }

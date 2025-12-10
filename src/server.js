@@ -18,6 +18,7 @@ import stripeTopupsRouter from './routes/stripeTopups.js';
 
 // TESTING
 import issuingTestRouter from "./routes/issuingTest.js";
+import adminCardholdersRouter from "./routes/admin_cardholders.js";
 
 
 // 🔥 NUEVAS rutas para Stripe Issuing
@@ -54,6 +55,7 @@ app.use('/api/issuing/ephemeral-keys', issuingEphemeralKeysRouter); // POST para
 
 // TESTING Issuing
 app.use("/api/issuing", issuingTestRouter);
+app.use("/api/admin/cardholders", adminCardholdersRouter);
 
 // Rutas Stripe admin (ya existentes)
 app.use('/api/stripe', stripeAdminRouter);
