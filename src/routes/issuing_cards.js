@@ -15,7 +15,7 @@ const toCents = (amount) => Math.round(parseFloat(parseFloat(amount).toFixed(2))
  */
 router.post('/virtual', async (req, res) => {
   try {
-    const { paysatUID, cardCost } = req.body;
+    const { paysatUID, cardCost, currency } = req.body;
 
     if (!paysatUID) {
       return res.status(400).json({ ok: false, error: 'paysatUID es requerido' });
@@ -42,7 +42,7 @@ router.post('/virtual', async (req, res) => {
     };
 
     // 1) Crear tarjeta virtual en Stripe Issuing
-    const card = await createVirtualCardForUser(paysatUID, { termsAcceptance });
+    const card = await createVirtualCardForUser(paysatUID, currency, { termsAcceptance });
 
     const amountCents = toCents(costParsed);
     const now = new Date();
@@ -53,7 +53,7 @@ router.post('/virtual', async (req, res) => {
       typeMovement: 'buy',
       amount: costParsed,
       amount_cents: amountCents,
-      currency: 'USD',
+      currency: currency.toUpperCase(),
       paysatUID,
       email: userEmail,
       numeroCuentaPAYSAT: userAccountNumber,
@@ -86,7 +86,7 @@ router.post('/virtual', async (req, res) => {
       typeMovement: 'deposit',
       amount: costParsed,
       amount_cents: amountCents,
-      currency: 'USD',
+      currency: currency.toUpperCase(),
       paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
       email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
       numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
@@ -131,7 +131,7 @@ router.post('/virtual', async (req, res) => {
         email: userEmail,
         userName: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',        
         amount: costParsed,
-        currency: 'USD',
+        currency: currency.toUpperCase(),
         numeroCuentaPAYSAT: userAccountNumber,
         cardLast4: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
         cardBrand: cardData.empty ? '' : cardData.docs[0].data().stripeCard["brand"] || '',

@@ -145,8 +145,8 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
     type: 'individual',
     individual: individualData,
     name: fullName,
-    email: userData.correo || undefined,
-    phone_number: userData.telefono || undefined,
+    email: userData.correo,
+    phone_number: userData.telefono,
     billing: {
       address: {
         line1: '136 West 9th Street',
@@ -208,13 +208,13 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
 /**
  * Crea una tarjeta virtual para el usuario y la guarda en Firestore.
  */
-export async function createVirtualCardForUser(paysatUID, options = {}) {
+export async function createVirtualCardForUser(paysatUID, currency, options = {}) {
   const { termsAcceptance } = options;
   const { cardholderId, userData } = await ensureCardholderForUser(paysatUID, { termsAcceptance });
 
   const card = await stripe.issuing.cards.create({
     cardholder: cardholderId,
-    currency: 'usd',   //<--- Cambiar si es necesario
+    currency: currency.toLowerCase(),   //<--- Cambiar si es necesario
     type: 'virtual',
     metadata: {
       paysatUID,

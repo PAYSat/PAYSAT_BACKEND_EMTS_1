@@ -43,6 +43,12 @@ router.post('/simulate', async (req, res) => {
       });
     }
 
+    const balance = await stripe.issuing.authorizations.list({
+      limit: 1,
+    });
+
+    console.log("BALANCE: ", balance);
+
     // // Crear una transacción de reembolso no vinculada para "abastecer" la tarjeta
     // const transaction = await stripe.testHelpers.issuing.transactions.createUnlinkedRefund({
     //   card: card_id,
