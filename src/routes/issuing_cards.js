@@ -17,14 +17,25 @@ router.post('/virtual', async (req, res) => {
   try {
     const { paysatUID, cardCost, currency } = req.body;
 
+    console.log('📝 Request body:', { paysatUID, cardCost, currency });
+
     if (!paysatUID) {
+      console.log('❌ Falta paysatUID');
       return res.status(400).json({ ok: false, error: 'paysatUID es requerido' });
     }
 
-    const costParsed = parseFloat(parseFloat(cardCost || 0).toFixed(2));
-    if (isNaN(costParsed) || costParsed <= 0) {
-      return res.status(400).json({ ok: false, error: 'cardCost inválido' });
+    if (!currency) {
+      console.log('❌ Falta currency');
+      return res.status(400).json({ ok: false, error: 'currency es requerido' });
     }
+
+    const costParsed = parseFloat(parseFloat(cardCost || 0).toFixed(2));
+    if (isNaN(costParsed) || costParsed < 0) {
+      console.log('❌ cardCost inválido:', cardCost, 'parsed:', costParsed);
+      return res.status(400).json({ ok: false, error: 'cardCost inválido o negativo' });
+    }
+
+    console.log('✅ Validaciones pasadas, buscando usuario:', paysatUID);
 
     // Datos de usuario desde PaySat_Users
     const userDoc = await db.collection('PaySat_Users').doc(paysatUID).get();

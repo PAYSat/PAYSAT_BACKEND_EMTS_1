@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { feesByRecharge, feesByIntent } from '../controllers/stripe_fees.controller.js';
+import { feesByRecharge, feesByIntent } from '../controllers/stripe_fees_controller.js';
 
 const router = Router();
 

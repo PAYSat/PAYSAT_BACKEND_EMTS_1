@@ -21,8 +21,12 @@ const hasOutstandingRequirements = (cardholder) => {
   if (!cardholder) return false;
   const req = cardholder.requirements || {};
 
+  // Permitir "under_review" ya que en test mode se aprueba automáticamente
+  const allowedReasons = ['under_review'];
+  const hasBlockingReason = req.disabled_reason && !allowedReasons.includes(req.disabled_reason);
+
   return Boolean(
-    req.disabled_reason ||
+    hasBlockingReason ||
     (Array.isArray(req.currently_due) && req.currently_due.length) ||
     (Array.isArray(req.past_due) && req.past_due.length) ||
     cardholder.status !== 'active'

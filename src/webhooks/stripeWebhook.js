@@ -417,7 +417,7 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
               console.log('✅ Balance transaction ahora disponible:', updatedCharge.balance_transaction);
               balanceTransaction = await stripe.balanceTransactions.retrieve(updatedCharge.balance_transaction);
               feeData = mapFeePayload(balanceTransaction);
-              console.log('💰 Fees obtenidos después de retry:', feeData);
+              // console.log('💰 Fees obtenidos después de retry:', feeData);
 
               // Guardar fees en Firebase
               await saveFeeToFirebase(
@@ -513,11 +513,11 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         }
 
         console.log('✅ Transacción procesada exitosamente');
-        console.log('📊 Resultado del procesamiento:', {
-          recharge: result.recharge?.documentId,
-          fee: result.fee?.documentId,
-          deposit: result.deposit?.documentId
-        });
+        // console.log('📊 Resultado del procesamiento:', {
+        //   recharge: result.recharge?.documentId,
+        //   fee: result.fee?.documentId,
+        //   deposit: result.deposit?.documentId
+        // });
 
         const movementsSummary = {
           recharge_id: result.recharge?.documentId || null,

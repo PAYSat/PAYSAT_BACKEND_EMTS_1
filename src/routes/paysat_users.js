@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { userProfile } from '../controllers/auth.controller.js';
+import { userProfile } from '../controllers/auth_controller.js';
 import { db } from '../config/firebase.js';
 import { emailService } from '../services/send_email.js';
 import { v4 as uuidv4 } from 'uuid';

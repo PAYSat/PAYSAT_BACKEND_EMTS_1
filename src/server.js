@@ -11,10 +11,11 @@ import authRouter from './routes/paysat_users.js';
 import stripeWebhookRouter from './webhooks/stripeWebhook.js';
 import stripeAdminRouter from './routes/stripe.js';
 import paymentsRouter from './routes/payments.js';
-import stripeFeesRoutes from './routes/stripe_fees.routes.js';
+import stripeFeesRoutes from './routes/stripe_fees_routes.js';
 import usersFirebaseRouter from './routes/paysat_users.js';
 import queriesFirebaseRouter from './routes/paysat_queries.js';
 import stripeTopupsRouter from './routes/stripeTopups.js';
+import cryptoCurrenciesRouter from './routes/crypto_coingecko.js';
 
 // TESTING
 import issuingTestRouter from "./routes/issuingTest.js";
@@ -48,6 +49,9 @@ app.use(authFirebaseRequired);
 
 // ====== Rutas protegidas ======
 app.use('/auth', authRouter);
+
+// Rutas Crypto Coingecko
+app.use('/api/crypto', cryptoCurrenciesRouter);
 
 // 🔥 Issuing (tarjetas virtuales + ephemeral keys + vista segura)
 app.use('/api/cards', issuingCardsRouter);                   // POST /api/cards/virtual
