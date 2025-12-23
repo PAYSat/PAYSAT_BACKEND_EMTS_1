@@ -16,6 +16,7 @@ import usersFirebaseRouter from './routes/paysat_users.js';
 import queriesFirebaseRouter from './routes/paysat_queries.js';
 import stripeTopupsRouter from './routes/stripeTopups.js';
 import cryptoCurrenciesRouter from './routes/crypto_coingecko.js';
+import walletsRouter from './routes/wallets_routes.js';
 
 // TESTING
 import issuingTestRouter from "./routes/issuingTest.js";
@@ -52,6 +53,7 @@ app.use('/auth', authRouter);
 
 // Rutas Crypto Coingecko
 app.use('/api/crypto', cryptoCurrenciesRouter);
+app.use('/api/wallets', walletsRouter);
 
 // 🔥 Issuing (tarjetas virtuales + ephemeral keys + vista segura)
 app.use('/api/cards', issuingCardsRouter);                   // POST /api/cards/virtual

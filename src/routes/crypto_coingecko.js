@@ -4,6 +4,6 @@ import { cryptoCurrenciesList, cryptoCurrencyById } from '../controllers/crypto_
 const router = Router();
 
 router.get('/currencies/list', cryptoCurrenciesList);
-router.get('/currency/:id', cryptoCurrencyById);
+router.get('/currencies/:id', cryptoCurrencyById);
 
 export default router;
