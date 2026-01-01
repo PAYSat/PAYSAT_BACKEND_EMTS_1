@@ -16,7 +16,22 @@ import usersFirebaseRouter from './routes/paysat_users.js';
 import queriesFirebaseRouter from './routes/paysat_queries.js';
 import stripeTopupsRouter from './routes/stripeTopups.js';
 import cryptoCurrenciesRouter from './routes/crypto_coingecko.js';
-import walletsRouter from './routes/wallets_routes.js';
+
+// Rutas P2P Crypto
+import p2pOffersRouter from './routes/p2p_offers.js';
+import p2pOrdersRouter from './routes/p2p_orders.js';
+import p2pChatRouter from './routes/p2p_chat.js';
+import paysatFcmRouter from './routes/paysat_fcm.js';
+import { startP2PExpiryJob } from './jobs/p2p_expiry_job.js';
+import debugRouter from './routes/debug_me.js';
+import paysatAdminFcmRouter from './routes/paysat_admin_fcm.js';
+import p2pDisputesRouter from './routes/p2p_disputes.js';
+import p2pAdminDisputesRouter from './routes/p2p_admin_disputes.js';
+import p2pAdminApiRouter from './routes/p2p_admin_api.js';
+import p2pDashboardRouter from './routes/p2p_dashboard.js';
+import p2pWalletRouter from './routes/p2p_wallet.js';
+
+
 
 // TESTING
 import issuingTestRouter from "./routes/issuingTest.js";
@@ -33,6 +48,8 @@ const app = express();
 
 applyCors(app);
 applySecurity(app);
+
+startP2PExpiryJob();
 
 // Logs
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -51,9 +68,21 @@ app.use(authFirebaseRequired);
 // ====== Rutas protegidas ======
 app.use('/auth', authRouter);
 
+// ====== P2P Crypto ======
+app.use('/api/debug', debugRouter);
+app.use('/api/p2p', p2pOffersRouter);
+app.use('/api/p2p', p2pWalletRouter);
+app.use('/api/p2p', p2pOrdersRouter);
+app.use('/api/p2p', p2pChatRouter);
+app.use('/api/paysat', paysatFcmRouter);
+app.use('/api/paysat', paysatAdminFcmRouter);
+app.use('/api/p2p', p2pDisputesRouter);
+app.use('/api/p2p', p2pAdminDisputesRouter);
+app.use('/api/p2p', p2pAdminApiRouter);
+app.use('/api', p2pDashboardRouter);
+
 // Rutas Crypto Coingecko
 app.use('/api/crypto', cryptoCurrenciesRouter);
-app.use('/api/wallets', walletsRouter);
 
 // 🔥 Issuing (tarjetas virtuales + ephemeral keys + vista segura)
 app.use('/api/cards', issuingCardsRouter);                   // POST /api/cards/virtual
