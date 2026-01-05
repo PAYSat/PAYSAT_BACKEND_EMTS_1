@@ -21,7 +21,7 @@ router.post('/orders', async (req, res) => {
     const takerUid = req.user.uid;
     const { offerId, amount, paymentMethod } = req.body;
 
-    console.log(offerId, amount, paymentMethod)
+    console.log(`${offerId}-mt1956`, amount, paymentMethod)
 
     if (!offerId || !amount) {
       console.log('offerId y amount son requeridos');
@@ -109,7 +109,7 @@ router.post('/orders', async (req, res) => {
       actorUid: takerUid
     });
 
-    return res.json({ ok: true, order });
+    return res.json({ ok: true, orderId, order });
   } catch (e) {
     console.log("Catch: ", e.message);
     return res.status(500).json({ ok: false, message: e.message });

@@ -58,11 +58,14 @@ export async function releaseEscrow({ sellerUid, buyerUid, asset, amount, orderI
     const buyerW  = await getOrCreateWalletTx(tx, buyerUid, assetU);
 
     const sellerEscrow = Number(sellerW.data.escrow || 0);
+    const sellerAvailable = Number(sellerW.data.available || 0);
+    
     if (sellerEscrow < amt) {
       throw new Error(`Escrow insuficiente: escrow=${sellerEscrow}, requerido=${amt}`);
     }
 
     const buyerAvailable = Number(buyerW.data.available || 0);
+    const buyerEscrow = Number(buyerW.data.escrow || 0);
 
     tx.update(sellerW.ref, {
       escrow: to2(sellerEscrow - amt),
@@ -76,11 +79,11 @@ export async function releaseEscrow({ sellerUid, buyerUid, asset, amount, orderI
 
     await upsertWalletAssetTx(tx, sellerUid, assetU, {
       available: to2(sellerAvailable),
-      escrow: to2(sellerEscrow),
+      escrow: to2(sellerEscrow - amt),
     });
 
     await upsertWalletAssetTx(tx, buyerUid, assetU, {
-      available: to2(buyerAvailable),
+      available: to2(buyerAvailable + amt),
       escrow: to2(buyerEscrow),
     });
 

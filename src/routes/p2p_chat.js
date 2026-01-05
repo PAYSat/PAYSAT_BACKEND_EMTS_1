@@ -17,38 +17,9 @@ const upload = multer({
 
 const now = () => new Date();
 
-function sanitizeFileName(name) {
-  return String(name || 'file')
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
-    .slice(0, 120);
+function safeStr(v) {
+  return String(v ?? '').trim();
 }
-
-function inferType(mimetype) {
-  if (!mimetype) return 'FILE';
-  if (mimetype.startsWith('image/')) return 'IMAGE';
-  if (mimetype === 'application/pdf') return 'PDF';
-  return 'FILE';
-}
-
-/**
- * GET /api/p2p/orders/:id/messages
- */
-router.get('/orders/:id/messages', requireOrderParticipant, async (req, res) => {
-  try {
-    const orderId = req.params.id;
-
-    const snap = await db.collection(COL.P2P_MESSAGES)
-      .where('orderId', '==', orderId)
-      .orderBy('createdAt', 'asc')
-      .limit(500)
-      .get();
-
-    const messages = snap.docs.map(d => d.data());
-    return res.json({ ok: true, messages });
-  } catch (e) {
-    return res.status(400).json({ ok: false, message: e.message });
-  }
-});
 
 /**
  * POST /api/p2p/orders/:id/messages/text
@@ -59,12 +30,17 @@ router.post('/orders/:id/messages/text', requireOrderParticipant, async (req, re
     const uid = req.user.uid;
     const orderId = req.params.id;
 
-    await assertChatRateLimit(uid, orderId);
+    // ✅ FIX: llamada correcta
+    await assertChatRateLimit({ senderUid: uid, orderId });
 
-    const text = String(req.body.text || '').trim().slice(0, 1000);
-    if (!text) return res.status(400).json({ ok: false, message: 'Texto requerido' });
+    const text = safeStr(req.body.text);
+    if (!text) {
+      console.error('[P2P_CHAT] Texto vacío recibido:', req.body);
+      return res.status(400).json({ ok: false, message: 'Texto requerido' });
+    }
 
     const id = uuidv4();
+
     const msg = {
       id,
       orderId,
@@ -73,32 +49,27 @@ router.post('/orders/:id/messages/text', requireOrderParticipant, async (req, re
       text,
       createdAt: now(),
       updatedAt: now(),
-      meta: {
-        attachmentUrl: null,
-        attachmentPath: null,
-        attachmentMime: null,
-        attachmentName: null,
-        attachmentSize: null,
-        url: null,
-        filename: null,
-        contentType: null,
-        purpose: null,
-      },
+      meta: {},
     };
 
-    // Notificar al otro usuario
-    const order = req.p2pOrder;
-    const otherUid = order.buyerUid === uid ? order.sellerUid : order.buyerUid;
-
-    await notifyUser(otherUid, buildChatNotification({
-      orderId,
-      senderUid: uid,
-      textPreview: text.length > 80 ? text.slice(0, 80) + '…' : text
-    }));
-
     await db.collection(COL.P2P_MESSAGES).doc(id).set(msg);
-    return res.json({ ok: true, message: msg });
+
+    // notificación al otro participante
+    if (req.otherUid) {
+      try {
+        await notifyUser(req.otherUid, buildChatNotification({
+          orderId,
+          senderUid: uid,
+          textPreview: text
+        }));
+      } catch (notifError) {
+        console.error('[P2P_CHAT] Error en notificación:', notifError.message);
+      }
+    }
+
+    return res.json({ ok: true, messageId: id, message: msg });
   } catch (e) {
+    console.error('[P2P_CHAT] Error en /messages/text:', e);
     return res.status(400).json({ ok: false, message: e.message });
   }
 });
@@ -106,9 +77,8 @@ router.post('/orders/:id/messages/text', requireOrderParticipant, async (req, re
 /**
  * POST /api/p2p/orders/:id/messages/attachment
  * form-data:
- * - file
- * - purpose: CHAT_FILE | PAYMENT_PROOF
- * - text: caption opcional
+ *  - file: <archivo>
+ *  - purpose?: CHAT_FILE | PAYMENT_PROOF
  */
 router.post(
   '/orders/:id/messages/attachment',
@@ -119,86 +89,94 @@ router.post(
       const uid = req.user.uid;
       const orderId = req.params.id;
 
-      await assertChatRateLimit(uid, orderId);
+      // ✅ FIX: llamada correcta
+      await assertChatRateLimit({ senderUid: uid, orderId });
 
       const purpose = String(req.body.purpose || 'CHAT_FILE').toUpperCase();
       if (!['CHAT_FILE', 'PAYMENT_PROOF'].includes(purpose)) {
-        return res.status(400).json({ ok:false, message:'purpose inválido' });
+        return res.status(400).json({ ok: false, message: 'purpose inválido' });
       }
 
-      const caption = String(req.body.text || '').trim().slice(0, 300);
-      const file = req.file;
-      if (!file) return res.status(400).json({ ok:false, message:'file requerido' });
+      if (!req.file) {
+        return res.status(400).json({ ok: false, message: 'Archivo requerido (field: file)' });
+      }
 
+      const mime = req.file.mimetype || '';
       const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-      if (!allowed.includes(String(file.mimetype || '').toLowerCase())) {
-        return res.status(400).json({ ok:false, message:`Tipo no permitido: ${file.mimetype}` });
+      if (!allowed.includes(mime)) {
+        return res.status(400).json({ ok: false, message: `Tipo no permitido: ${mime}` });
       }
 
-      const fileName = sanitizeFileName(file.originalname);
-      const objectPath = `PaySat_Crypto/P2P/${orderId}/${Date.now()}_${fileName}`;
-      const storageFile = bucket.file(objectPath);
+      const ext =
+        mime === 'image/jpeg' ? 'jpg' :
+        mime === 'image/png' ? 'png' :
+        'pdf';
 
       const id = uuidv4();
-      const downloadToken = uuidv4();
+      const path = `p2p/orders/${orderId}/messages/${id}.${ext}`;
 
-      await storageFile.save(file.buffer, {
-        contentType: file.mimetype,
+      const file = bucket.file(path);
+
+      await file.save(req.file.buffer, {
+        contentType: mime,
         resumable: false,
         metadata: {
-          metadata: {
-            firebaseStorageDownloadTokens: downloadToken,
-            orderId,
-            senderUid: uid,
-            purpose,
-          },
+          cacheControl: 'public, max-age=31536000',
         },
       });
 
-      // ✅ URL pública por token (no expira como signedUrl)
-      const encodedPath = encodeURIComponent(objectPath);
-      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+      // URL firmada (si tu bucket es privado)
+      const [url] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 30, // 30 días
+      });
 
+      const caption = safeStr(req.body.caption || req.body.text || '');
+      console.log('[P2P_CHAT] Archivo subido:', { id, purpose, mime, size: req.file.size });
+
+      // ✅ Estructura compatible con frontend Flutter
       const msg = {
         id,
         orderId,
         senderUid: uid,
         type: 'ATTACHMENT',
-        text: caption || '',
+        text: caption,
         createdAt: now(),
         updatedAt: now(),
         meta: {
-          purpose,
           url,
-
-          // ✅ compat para Flutter (y para tu meta antigua)
-          filename: fileName,
-          contentType: file.mimetype,
-
+          downloadUrl: url,
           attachmentUrl: url,
-          attachmentPath: objectPath,
-          attachmentMime: file.mimetype,
-          attachmentName: fileName,
-          attachmentSize: file.size,
-          downloadToken,
-
-          fileKind: inferType(file.mimetype),
+          path,
+          contentType: mime,
+          mimeType: mime,
+          attachmentMime: mime,
+          filename: req.file.originalname || `file.${ext}`,
+          name: req.file.originalname || `file.${ext}`,
+          attachmentName: req.file.originalname || `file.${ext}`,
+          size: req.file.size || 0,
+          purpose,
+          attachmentPurpose: purpose,
         },
       };
 
       await db.collection(COL.P2P_MESSAGES).doc(id).set(msg);
 
-      const order = req.p2pOrder;
-      const otherUid = order.buyerUid === uid ? order.sellerUid : order.buyerUid;
-
-      await notifyUser(otherUid, buildChatNotification({
-        orderId,
-        senderUid: uid,
-        textPreview: purpose === 'PAYMENT_PROOF' ? '📎 Comprobante enviado' : '📎 Adjunto enviado'
-      }));
+      if (req.otherUid) {
+        try {
+          await notifyUser(req.otherUid, buildChatNotification({
+            orderId,
+            senderUid: uid,
+            textPreview: purpose === 'PAYMENT_PROOF' ? '📎 Comprobante enviado' : '📎 Adjunto enviado'
+          }));
+        } catch (notifError) {
+          console.error('[P2P_CHAT] Error en notificación:', notifError.message);
+        }
+      }
 
       return res.json({ ok: true, messageId: id, url, message: msg });
     } catch (e) {
+      console.error('[P2P_CHAT] Error en /messages/attachment:', e);
       return res.status(400).json({ ok: false, message: e.message });
     }
   }

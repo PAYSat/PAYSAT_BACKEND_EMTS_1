@@ -28,10 +28,15 @@ router.post('/offers', async (req, res) => {
       return res.status(400).json({ ok: false, message: 'Campos requeridos: type, asset, currency, price' });
     }
 
+    // Obtener nombre completo del usuario
+    const userSnap = await db.collection(COL.PAYSAT_USERS).doc(uid).get();
+    const userName = userSnap.exists ? (userSnap.data().nombreCompleto || '') : '';
+
     const id = uuidv4();
     const doc = {
       id,
       userId: uid,
+      userName,
       type: String(type).toUpperCase(),
       asset: String(asset).toUpperCase(),
       currency: String(currency).toUpperCase(),

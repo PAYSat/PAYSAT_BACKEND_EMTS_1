@@ -1,6 +1,7 @@
 export const COL = {
   WALLETS: 'PaySat_Crypto_Wallets',
   LEDGER: 'PaySat_Crypto_Ledger',
+  PAYSAT_USERS: 'PaySat_Users',
 
   P2P_OFFERS: 'PaySat_Crypto_P2P_Offers',
   P2P_ORDERS: 'PaySat_Crypto_P2P_Orders',

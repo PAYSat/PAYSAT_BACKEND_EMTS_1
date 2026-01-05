@@ -17,6 +17,8 @@ export async function requireOrderParticipant(req, res, next) {
     if (!allowed) return res.status(403).json({ ok: false, message: 'No autorizado: no perteneces a esta orden' });
 
     req.p2pOrder = order;
+    // Agregar otherUid para notificaciones
+    req.otherUid = uid === order.buyerUid ? order.sellerUid : order.buyerUid;
     next();
   } catch (e) {
     return res.status(500).json({ ok: false, message: e.message });

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { db } from '../config/firebase.js';
 import { COL } from '../utils/paysat_crypto_collections.js';
+import { coinGeckoBaseUrl } from '../config/crypto_coingecko.js';
 
 const router = Router();
 const now = () => new Date();
@@ -13,6 +14,48 @@ function normalizeAsset(a) {
 function toMoney2(n) {
   const x = Number(n || 0);
   return Number(x.toFixed(2));
+}
+
+// Mapeo de símbolos a IDs de CoinGecko
+const COINGECKO_IDS = {
+  'USDT': 'tether',
+  'BTC': 'bitcoin',
+  'ETH': 'ethereum',
+};
+
+// URL fija para PS-USD
+const PS_USD_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fps-usd%2Fps-usd.png?alt=media&token=30b575fa-6205-4548-91cd-e93d0a657dd3';
+
+/**
+ * Obtiene la imagen de una crypto desde CoinGecko
+ */
+async function getCryptoImage(asset) {
+  try {
+    // Caso especial: PS-USD
+    if (asset === 'PS-USD') {
+      return PS_USD_IMAGE;
+    }
+
+    // Buscar en CoinGecko
+    const coinId = COINGECKO_IDS[asset];
+    if (!coinId) {
+      console.warn(`No CoinGecko ID found for ${asset}`);
+      return null;
+    }
+
+    const response = await fetch(`${coinGeckoBaseUrl}/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`);
+    
+    if (!response.ok) {
+      console.error(`CoinGecko error for ${asset}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.image?.large || data.image?.small || data.image?.thumb || null;
+  } catch (error) {
+    console.error(`Error fetching image for ${asset}:`, error.message);
+    return null;
+  }
 }
 
 /**
@@ -49,6 +92,14 @@ router.post('/wallet/init', async (req, res) => {
     const walletRef = db.collection(COL.CRYPTO_WALLETS).doc(uid);
     const assetRefs = finalAssets.map((a) => walletRef.collection('assets').doc(a));
 
+    // Obtener imágenes de las cryptos
+    const imagePromises = finalAssets.map(asset => getCryptoImage(asset));
+    const images = await Promise.all(imagePromises);
+    const imageMap = {};
+    finalAssets.forEach((asset, i) => {
+      imageMap[asset] = images[i];
+    });
+
     await db.runTransaction(async (tx) => {
       // ✅ 1) LEER TODO PRIMERO
       const walletSnapPromise = tx.get(walletRef);
@@ -73,6 +124,7 @@ router.post('/wallet/init', async (req, res) => {
         const available = 0;
         const escrow = 0;
         const total = toMoney2(available + escrow);
+        const image = imageMap[asset] || null;
 
         if (!snap.exists) {
           tx.set(
@@ -83,19 +135,20 @@ router.post('/wallet/init', async (req, res) => {
               available: toMoney2(available),
               escrow: toMoney2(escrow),
               total,
+              image,
               createdAt: now(),
               updatedAt: now(),
             },
             { merge: true }
           );
         } else {
-          // si ya existe, NO pisamos createdAt ni valores actuales
-          // solo aseguramos campos mínimos (si quieres, puedes remover esta parte)
+          // si ya existe, actualizamos la imagen pero NO pisamos valores de balance
           tx.set(
             ref,
             {
               uid,
               asset,
+              image,
               updatedAt: now(),
             },
             { merge: true }
