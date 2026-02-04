@@ -1,8 +1,12 @@
 import admin from 'firebase-admin';
-import fs from 'fs';
 
-const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.error('❌ Falta la variable de entorno GOOGLE_APPLICATION_CREDENTIALS');
+  console.error('   Configura GOOGLE_APPLICATION_CREDENTIALS con el JSON completo de las credenciales');
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),

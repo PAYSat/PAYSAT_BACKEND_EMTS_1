@@ -1,16 +1,12 @@
 import admin from 'firebase-admin';
-import fs from 'fs';
 
-// Ruta al JSON de Service Account (NO lo subas a git)
-const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-
-if (!saPath) {
-  console.error('Falta FIREBASE_SERVICE_ACCOUNT_PATH (ruta al serviceAccount json)');
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.error('❌ Falta la variable de entorno GOOGLE_APPLICATION_CREDENTIALS');
+  console.error('   Configura GOOGLE_APPLICATION_CREDENTIALS con el JSON completo de las credenciales');
   process.exit(1);
 }
 
-const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf8'));
-
+const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });

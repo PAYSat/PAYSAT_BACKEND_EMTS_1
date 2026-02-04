@@ -1,10 +1,13 @@
 // Script para verificar qué buckets de Storage existen
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
 
-const serviceAccount = JSON.parse(
-  readFileSync('./etc/secrets/firebase-service-account.json', 'utf8')
-);
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.error('❌ Falta la variable de entorno GOOGLE_APPLICATION_CREDENTIALS');
+  console.error('   Configura GOOGLE_APPLICATION_CREDENTIALS con el JSON completo de las credenciales');
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
