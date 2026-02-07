@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { stripe, apiVersion, publishableKey } from '../config/stripe.js';
 import { db } from '../config/firebase.js';
 import { redactEphemeralKey, redactPaymentIntent, redactBackendResponseToClient } from '../utils/redact.js';
-import { emailService } from '../services/send_email.js';
+import { emailService } from '../services/send_email_service.js';
 
 const router = Router();
 
@@ -439,7 +439,7 @@ router.post('/confirm-and-reload', async (req, res) => {
           const userDoc = await db.collection('PaySat_Users').doc(sessionData.uid).get();
           if (userDoc.exists) {
             const userData = userDoc.data();
-            userName = userData.primerNombre || userData.nombreCompleto || userName;
+            userName = userData.firstName || userData.fullName || userName;
             console.log('👤 Nombre de usuario obtenido:', userName);
           }
         } catch (userError) {
@@ -615,7 +615,7 @@ router.post('/confirm-and-reload', async (req, res) => {
 //             const userDoc = await db.collection('PaySat_Users').doc(sessionData.uid).get();
 //             if (userDoc.exists) {
 //               const userData = userDoc.data();
-//               userName = userData.primerNombre || userData.nombreCompleto || userName;
+//               userName = userData.firstName || userData.fullName || userName;
 //               console.log('👤 Nombre de usuario obtenido:', userName);
 //             }
 //           } catch (userError) {

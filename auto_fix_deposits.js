@@ -25,14 +25,14 @@ async function autoFixDeposits() {
       const data = doc.data();
       
       // Verificar si tiene datos incorrectos
-      if (data.paysatUID !== CORRECT_UID || data.numeroCuentaPAYSAT !== CORRECT_NUMBER) {
+      if (data.paysatUID !== CORRECT_UID || data.PAYSATAccountNumber !== CORRECT_NUMBER) {
         console.log(`❌ Corrigiendo: ${doc.id}`);
-        console.log(`   Antes: UID=${data.paysatUID}, NUM=${data.numeroCuentaPAYSAT}`);
+        console.log(`   Antes: UID=${data.paysatUID}, NUM=${data.PAYSATAccountNumber}`);
         
         await db.collection('PaySat_Account_Movements').doc(doc.id).update({
           paysatUID: CORRECT_UID,
           email: CORRECT_EMAIL,
-          numeroCuentaPAYSAT: CORRECT_NUMBER,
+          PAYSATAccountNumber: CORRECT_NUMBER,
           updatedAt: new Date(),
           auto_fixed: true,
           auto_fixed_at: new Date()

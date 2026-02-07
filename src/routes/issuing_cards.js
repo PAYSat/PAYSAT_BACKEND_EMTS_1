@@ -44,8 +44,8 @@ router.post('/virtual', async (req, res) => {
     }
     const userData = userDoc.data();
 
-    const userEmail = userData.correo || 'email@not.found';
-    const userAccountNumber = userData.numeroCuentaPAYSAT || 'N/A';
+    const userEmail = userData.email || 'email@not.found';
+    const userAccountNumber = userData.PAYSATAccountNumber || 'N/A';
     const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || '0.0.0.0';
     const termsAcceptance = {
       ip: clientIp,
@@ -67,7 +67,7 @@ router.post('/virtual', async (req, res) => {
       currency: currency.toUpperCase(),
       paysatUID,
       email: userEmail,
-      numeroCuentaPAYSAT: userAccountNumber,
+      PAYSATAccountNumber: userAccountNumber,
       from: 'Emission_PAYSAT_Virtual_Card',
       description: 'Emission_PAYSAT_Virtual_Card',
       createdAt: now,
@@ -100,7 +100,7 @@ router.post('/virtual', async (req, res) => {
       currency: currency.toUpperCase(),
       paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
       email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
-      numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
+      PAYSATAccountNumber: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
       from: 'Deposit_PAYSAT_Virtual_Card',
       description: `Emission_PAYSAT_Virtual_Card usr: ${paysatUID}`,
       createdAt: now,
@@ -137,13 +137,13 @@ router.post('/virtual', async (req, res) => {
         minute: '2-digit'
       });
 
-      const { emailService } = await import('../services/send_email.js');
+      const { emailService } = await import('../services/send_email_service.js');
       await emailService.sendCardActivationEmail({
         email: userEmail,
         userName: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',        
         amount: costParsed,
         currency: currency.toUpperCase(),
-        numeroCuentaPAYSAT: userAccountNumber,
+        PAYSATAccountNumber: userAccountNumber,
         cardLast4: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
         cardBrand: cardData.empty ? '' : cardData.docs[0].data().stripeCard["brand"] || '',
         fecha: fechaFormateada,

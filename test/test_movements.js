@@ -9,7 +9,7 @@ import {
 
 const PAYSAT_MAIN_ACCOUNT = {
   paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
-  numeroCuentaPAYSAT: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
+  PAYSATAccountNumber: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
   email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL
 };
 

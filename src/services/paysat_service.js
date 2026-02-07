@@ -21,7 +21,7 @@ export async function getPaySatUserData(paysatUID) {
 }
 
 /**
- * Obtiene el numeroCuentaPAYSAT de un usuario
+ * Obtiene el PAYSATAccountNumber de un usuario
  */
 export async function getUserAccountNumber(paysatUID) {
   try {
@@ -31,14 +31,14 @@ export async function getUserAccountNumber(paysatUID) {
     }
     
     const userData = userDoc.data();
-    if (!userData.numeroCuentaPAYSAT) {
-      throw new Error(`numeroCuentaPAYSAT no encontrado para usuario: ${paysatUID}`);
+    if (!userData.PAYSATAccountNumber) {
+      throw new Error(`PAYSATAccountNumber no encontrado para usuario: ${paysatUID}`);
     }
 
-    return userDoc.data().numeroCuentaPAYSAT;
+    return userDoc.data().PAYSATAccountNumber;
 
   } catch (error) {
-    console.error('❌ Error obteniendo numeroCuentaPAYSAT:', error);
+    console.error('❌ Error obteniendo PAYSATAccountNumber:', error);
     throw error;
   }
 }

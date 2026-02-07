@@ -4,6 +4,10 @@ import { admin } from '../config/firebase.js';
 export async function authFirebaseRequired(req, res, next) {
   if (req.path === '/health') return next();
   if (req.path.startsWith('/webhooks')) return next();
+  if (req.path === '/auth/phone/send-otp') return next();
+  if (req.path === '/auth/phone/verify-otp') return next();
+  if (req.path === '/api/temp/subir-datos') return next();
+  if (req.path === '/api/temp/codigos-uuid') return next();
 
   const hdr = req.headers.authorization || '';
   const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;

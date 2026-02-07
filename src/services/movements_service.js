@@ -49,14 +49,14 @@ async function createRechargeMovement(sessionData, paymentIntentId, rechargeId) 
       }
     }
     
-    // Obtener el numeroCuentaPAYSAT del usuario
-    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
+    // Obtener el PAYSATAccountNumber del usuario
+    const PAYSATAccountNumber = await getUserAccountNumber(sessionData.paysatUID);
     
     const rechargeMovement = {
       // Información del pago
       ...sessionData,
       typeMovement: "recharge",
-      numeroCuentaPAYSAT: numeroCuentaPAYSAT,
+      PAYSATAccountNumber: PAYSATAccountNumber,
       payment_intent_id: paymentIntentId,
       recharge_id: rechargeId,
       
@@ -93,8 +93,8 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
       return { success: true, documentId: feeDocId, data: existingFee.data(), skipped: true };
     }
     
-    // Obtener el numeroCuentaPAYSAT del usuario
-    const numeroCuentaPAYSAT = await getUserAccountNumber(sessionData.paysatUID);
+    // Obtener el PAYSATAccountNumber del usuario
+    const PAYSATAccountNumber = await getUserAccountNumber(sessionData.paysatUID);
     
     // Calcular el fee total (Stripe + PaySat)
     const stripeFee_cents = feeData.fee_cents;
@@ -112,7 +112,7 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
       typeMovement: "fee",
       paysatFee: PAYSAT_FEE_AMOUNT,
       paysatFee_cents: PAYSAT_FEE_CENTS,
-      numeroCuentaPAYSAT: numeroCuentaPAYSAT,
+      PAYSATAccountNumber: PAYSATAccountNumber,
       paysatUID: sessionData.paysatUID,
       
       // Recálculos
@@ -173,20 +173,20 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       // Verificar si el depósito tiene datos incorrectos
       const needsUpdate = existingData.paysatUID !== paysatMainUID ||
                          existingData.email !== paysatMainEmail ||
-                         existingData.numeroCuentaPAYSAT !== paysatMainNumber;
+                         existingData.PAYSATAccountNumber !== paysatMainNumber;
       
       if (needsUpdate) {
         console.log('⚠️ Depósito existente con datos antiguos, actualizando...');
         console.log('📝 Datos antiguos:', {
           paysatUID: existingData.paysatUID,
           email: existingData.email,
-          numeroCuentaPAYSAT: existingData.numeroCuentaPAYSAT
+          PAYSATAccountNumber: existingData.PAYSATAccountNumber
         });
         
         const updatedData = {
           paysatUID: paysatMainUID,
           email: paysatMainEmail,
-          numeroCuentaPAYSAT: paysatMainNumber,
+          PAYSATAccountNumber: paysatMainNumber,
           updatedAt: new Date()
         };
         
@@ -230,7 +230,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
       currency: "USD",
       paysatUID: paysatMainUID,
       email: paysatMainEmail,
-      numeroCuentaPAYSAT: paysatMainNumber,
+      PAYSATAccountNumber: paysatMainNumber,
       from: balanceTransactionId,
       description: "fee",
       

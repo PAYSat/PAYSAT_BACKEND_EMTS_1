@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 
 import { applyCors } from './middlewares/cors.js';
 import { applySecurity } from './middlewares/security.js';
@@ -44,12 +45,26 @@ import issuingCardsRouter from './routes/issuing_cards.js';
 import issuingEphemeralKeysRouter from './routes/issuing_ephemeral_keys.js';
 import secureCardsViewRouter from './routes/secure_cards_view.js';
 
+// Rutas para App Transfers (P2P interno)
+import appTransfers from './routes/app_transfers.js';
+import appSignupOtp from './routes/app_signup_otp.js';
+import appTempSubirDatos from './routes/app_temp_subir_datos.js';
+
 const app = express();
 
 applyCors(app);
 applySecurity(app);
 
 startP2PExpiryJob();
+
+// ===== Rate limit anti abuso =====
+const otpLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000, // 1 min
+  limit: parseInt(process.env.RATE_LIMIT_MAX) || 8,            // 8 requests/min por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 // Logs
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -59,8 +74,13 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use('/webhooks/stripe', stripeWebhookRouter);
 app.use('/webhooks/stripe-issuing-auth', stripeIssuingAuthWebhook);
 
-// JSON para el resto de rutas
+// JSON para el resto de rutas (debe estar ANTES de las rutas que lo necesitan)
 app.use(express.json({ limit: '2mb' }));
+
+// OTP sin autenticación
+app.use("/auth/phone", otpLimiter);
+app.use("/auth/phone", appSignupOtp);
+app.use("/api/temp", appTempSubirDatos);
 
 // 🔒 Autenticación global por Firebase ID Token
 app.use(authFirebaseRequired);
@@ -103,6 +123,9 @@ app.use('/api/paysat/users', usersFirebaseRouter);
 
 // Consultas generales (paysat_queries)
 app.use('/api/paysat/queries', queriesFirebaseRouter);
+
+// Transferencias internacionales
+app.use('/api/transfer', appTransfers);
 
 // ====== Vista segura de la tarjeta (Issuing Elements) ======
 app.use('/secure-cards', secureCardsViewRouter);

@@ -122,8 +122,8 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
   }
 
   // Si lastName tiene más de una palabra, toma solo la primera
-  const safeLastName = (userData.apellidos || '').split(' ')[0];
-  const fullName = [userData.primerNombre || '', safeLastName].join(' ').trim() || 'PAYSAT USER';
+  const safeLastName = (userData.lastName || '').split(' ')[0];
+  const fullName = [userData.firstName || '', safeLastName].join(' ').trim() || 'PAYSAT USER';
 
   // console.log("APELLIDO: ", safeLastName, "--- NOMBRE COMPLETO: ", fullName);
 
@@ -136,7 +136,7 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
 
   const individualData = {
     first_name: userData.nombres || 'Test',
-    last_name: userData.apellidos || 'User',
+    last_name: userData.lastName || 'User',
     dob: {
       day: userData.dobDiaNacimiento || 1,
       month: userData.dobMesNacimiento || 1,
@@ -150,7 +150,7 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
     individual: individualData,
     name: fullName,
     email: userData.correo,
-    phone_number: userData.telefono,
+    phone_number: userData.phoneNumber,
     billing: {
       address: {
         line1: '136 West 9th Street',
@@ -163,7 +163,7 @@ export async function ensureCardholderForUser(paysatUID, options = {}) {
     status: 'active',
     metadata: {
       paysatUID,
-      paysatNumeroCuenta: userData.numeroCuentaPAYSAT || '',
+      paysatNumeroCuenta: userData.PAYSATAccountNumber || '',
     },
     // Agregar spending_controls para definir límites (opcional pero recomendado)
     spending_controls: {
@@ -222,7 +222,7 @@ export async function createVirtualCardForUser(paysatUID, currency, options = {}
     type: 'virtual',
     metadata: {
       paysatUID,
-      paysatNumeroCuenta: userData.numeroCuentaPAYSAT || '',
+      paysatNumeroCuenta: userData.PAYSATAccountNumber || '',
       program: 'PAYSAT_MONEY',
     },
     status: 'active',

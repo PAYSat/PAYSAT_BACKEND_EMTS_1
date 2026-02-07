@@ -30,7 +30,7 @@ router.post('/offers', async (req, res) => {
 
     // Obtener nombre completo del usuario
     const userSnap = await db.collection(COL.PAYSAT_USERS).doc(uid).get();
-    const userName = userSnap.exists ? (userSnap.data().nombreCompleto || '') : '';
+    const userName = userSnap.exists ? (userSnap.data().fullName || '') : '';
 
     const id = uuidv4();
     const doc = {

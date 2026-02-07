@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { userProfile } from '../controllers/auth_controller.js';
 import { db } from '../config/firebase.js';
-import { emailService } from '../services/send_email.js';
+import { emailService } from '../services/send_email_service.js';
 import { v4 as uuidv4 } from 'uuid';
 // import { requireRole } from '../middlewares/roles.js';
 
@@ -111,7 +111,7 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
           email: data.email || null
         }),
         
-        numeroCuentaPAYSAT: data.numeroCuentaPAYSAT || null,
+        PAYSATAccountNumber: data.PAYSATAccountNumber || null,
         
         // Usar la fecha específica del movimiento (priorizar createdAt, luego updatedAt como fallback)
         createdAt: data.createdAt ? data.createdAt : (data.updatedAt || new Date()),
@@ -397,7 +397,7 @@ router.get('/cards/transactions/history/:paysatUID', async (_req, res) => {
           email: data.email || null
         }),
         
-        numeroCuentaPAYSAT: data.numeroCuentaPAYSAT || null,
+        PAYSATAccountNumber: data.PAYSATAccountNumber || null,
         
         // Usar la fecha específica del movimiento (priorizar createdAt, luego updatedAt como fallback)
         createdAt: data.createdAt ? data.createdAt : (data.updatedAt || new Date()),

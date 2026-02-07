@@ -19,20 +19,20 @@ export const userProfile = async (req, res) => {
         data: {
           uid: userReq.uid,
           imageUrlUser: userData.data().imageUrlUser ?? userReq.imageUrlUser ?? null,
-          nombreCompleto: userData.data().nombreCompleto ?? userReq.fullName ?? null,
-          primerNombre: userData.data().primerNombre ?? userReq.firstName ?? null,
-          nombres: userData.data().nombres ?? null,
-          apellidos: userData.data().apellidos ?? null,
-          telefono: userData.data().telefono ?? userReq.phoneNumber ?? null,
+          fullName: userData.data().fullName ?? userReq.fullName ?? null,
+          firstName: userData.data().firstName ?? userReq.firstName ?? null,
+          names: userData.data().names ?? null,
+          lastName: userData.data().lastName ?? null,
+          phoneNumber: userData.data().phoneNumber ?? userReq.phoneNumber ?? null,
           email: userRecord.email ?? userReq.email ?? null,
-          role: userData.data().rol ?? userReq.role ?? null,
+          role: userData.data().role ?? userReq.role ?? null,
           dniDocType: userData.data().dniDocType ?? null,
           dniPersonalNumber: userData.data().dniPersonalNumber ?? null,
           dniExpirationDate: userData.data().dniExpirationDate ?? null,
-          pais: userData.data().pais ?? null,
-          ciudad: userData.data().ciudad ?? null,
-          direccion: userData.data().direccionPersonalOCR ?? null,
-          numeroCuentaPAYSAT: userData.data().numeroCuentaPAYSAT ?? null
+          country: userData.data().country ?? null,
+          city: userData.data().city ?? null,
+          ocrPersonalAddress: userData.data().ocrPersonalAddress ?? null,
+          PAYSATAccountNumber: userData.data().PAYSATAccountNumber ?? null
         }
       };
 

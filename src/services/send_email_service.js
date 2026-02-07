@@ -11,7 +11,7 @@ class EmailService {
      * @param {string} data.userName
      * @param {number} data.amount
      * @param {string} data.currency
-     * @param {string} data.numeroCuentaPAYSAT
+     * @param {string} data.PAYSATAccountNumber
      * @param {string} data.cardLast4
      * @param {string} data.cardBrand
      * @param {string} data.fecha
@@ -55,7 +55,7 @@ class EmailService {
               <div class="amount-label">Costo descontado de tu cuenta PaySat</div>
               <div class="details">
                 <h3>Detalles de la activación:</h3>
-                <p><strong>Número de cuenta:</strong> ${data.numeroCuentaPAYSAT}</p>
+                <p><strong>Número de cuenta:</strong> ${data.PAYSATAccountNumber}</p>
                 <p><strong>Fecha de activación:</strong> ${data.fecha}</p>
                 <p><strong>Estado:</strong> Activa ✅</p>
               </div>
@@ -90,14 +90,14 @@ class EmailService {
      * @param {string} data.userName
      * @param {number} data.amount
      * @param {string} data.currency
-     * @param {string} data.numeroCuentaPAYSAT
+     * @param {string} data.PAYSATAccountNumber
      * @param {string} data.cardLast4
      * @param {string} data.cardBrand
      * @param {string} data.fecha
      */
     async sendCardActivationEmail(data) {
       try {
-        const { email, userName, amount, currency = 'USD', numeroCuentaPAYSAT, cardLast4, cardBrand, fecha } = data;
+        const { email, userName, amount, currency = 'USD', PAYSATAccountNumber, cardLast4, cardBrand, fecha } = data;
         if (!email) {
           return { success: false, error: 'Email de destino requerido' };
         }
@@ -105,7 +105,7 @@ class EmailService {
           userName,
           amount,
           currency,
-          numeroCuentaPAYSAT,
+          PAYSATAccountNumber,
           cardLast4,
           cardBrand,
           fecha
@@ -302,14 +302,14 @@ class EmailService {
    * @param {string} data.gpaOrderToken - Token de la orden GPA
    * @param {string} data.cardMovementId - ID del movimiento de tarjeta
    * @param {string} data.accountMovementId - ID del movimiento de cuenta
-   * @param {string} data.numeroCuentaPAYSAT - Número de cuenta PaySat
+   * @param {string} data.PAYSATAccountNumber - Número de cuenta PaySat
    * @param {string} data.paysatUID - UID del usuario en PaySat
    */
   async sendCardRechargeConfirmation(data) {
     try {
       console.log('📧 Enviando email de confirmación de recarga de tarjeta a:', data.email);
 
-      const { email, userName, amount, currency = 'USD', gpaOrderToken, cardMovementId, accountMovementId, numeroCuentaPAYSAT, paysatUID } = data;
+      const { email, userName, amount, currency = 'USD', gpaOrderToken, cardMovementId, accountMovementId, PAYSATAccountNumber, paysatUID } = data;
 
       if (!email) {
         return {
@@ -325,7 +325,7 @@ class EmailService {
         gpaOrderToken,
         cardMovementId,
         accountMovementId,
-        numeroCuentaPAYSAT,
+        PAYSATAccountNumber,
         paysatUID,
         date: new Date().toLocaleString('es-ES', { 
           timeZone: 'America/Guayaquil',
@@ -410,7 +410,7 @@ class EmailService {
               <h3><span class="card-icon">💳</span>Detalles de la transacción:</h3>
               <p><strong>Monto recargado:</strong> $${formattedAmount} ${data.currency}</p>
               <!-- <p><strong>Token GPA:</strong> ${data.gpaOrderToken}</p> -->
-              <p><strong>Número de cuenta:</strong> ${data.numeroCuentaPAYSAT}</p>
+              <p><strong>Número de cuenta:</strong> ${data.PAYSATAccountNumber}</p>
               <p><strong>Fecha:</strong> ${data.date}</p>
               <p><strong>Estado:</strong> Completada ✅</p>
             </div>
@@ -430,20 +430,245 @@ class EmailService {
     `;
   }
 
-  /**
-   * Envía email de bienvenida (para implementar después)
-   */
-  async sendWelcomeEmail(data) {
-    // TODO: Implementar después
-    // console.log('📧 Welcome email - Por implementar');
+   /**
+ * Envía un correo de bienvenida al usuario que inicia sesión.
+ * @param {Object} params
+ * @param {string} params.firstName - Nombre del usuario
+ * @param {string} params.email - Email del destinatario
+ */
+
+  async sendWelcomeEmail({ firstName, email }) {
+    let logoUrl = process.env.APP_LOGO_URL || '';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7fafc; padding: 32px; border-radius: 12px; max-width: 480px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.07);">
+        <div style="text-align: center; margin-bottom: 24px;">
+          ${logoUrl ? `<img src="${logoUrl}" alt="EcuaRed Transfer" style="width: 80px; height: 80px; border-radius: 16px; margin-bottom: 12px;" />` : ''}
+          <h2 style="color: #26A69A; margin-bottom: 8px;">¡Bienvenido, ${firstName}!</h2>
+          <p style="color: #444; font-size: 18px; margin: 0;">Te damos la bienvenida a <b>EcuaRed Transfer</b></p>
+        </div>
+        <div style="color: #555; font-size: 16px; line-height: 1.6;">
+          <p>¡Nos alegra tenerte con nosotros! Ahora puedes comenzar a gestionar tus transferencias de dinero en un solo lugar de manera sencilla y segura.</p>
+          <p>Si tienes alguna duda o necesitas ayuda, no dudes en contactarnos.</p>
+        </div>
+        <div style="margin-top: 32px; text-align: center;">
+          <span style="color: #aaa; font-size: 13px;">Equipo de EcuaRed Transfer</span>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: emailConfig.from,
+      to: email,
+      subject: '¡Bienvenido a EcuaRed Transfer!',
+      html: htmlContent
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      return { success: true };
+    } catch (error) {
+      console.error('Error enviando correo de bienvenida:', error);
+      return { success: false, error };
+    }
   }
 
   /**
-   * Envía email de alerta de transacción (para implementar después)
+   * Envía un correo de notificación al remitente de una transferencia
+   * @param {Object} params
+   * @param {string} params.email - Email del remitente
+   * @param {string} params.recipientName - Nombre del destinatario
+   * @param {number} params.amount - Monto transferido
+   * @param {string} params.movementId - ID del movimiento
+   * @param {string} params.originLogoUrl - URL del logo de origen
+   * @param {string} params.destinationLogoUrl - URL del logo de destino
+   * @param {string} params.destinationAffiliate - Nombre del afiliado destino
    */
-  async sendTransactionAlert(data) {
-    // TODO: Implementar después
-    // console.log('📧 Transaction alert - Por implementar');
+  async sendTransferSentEmail({ email, recipientName, amount, movementId, originLogoUrl, destinationLogoUrl, destinationAffiliate }) {
+    const appLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+    const appArrow = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Farrows%2Farrow.png?alt=media&token=e24d66ea-3ff6-48c8-8ce4-58f0a8e73e70';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7fafc; padding: 32px; border-radius: 12px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.07);">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="${appLogoUrl}" alt="EcuaRed Transfer" style="width: 80px; height: 80px; border-radius: 16px; margin-bottom: 12px;" />
+          <h2 style="color: #26A69A; margin-bottom: 8px;">Transferencia Realizada Exitosamente</h2>
+        </div>
+        
+        <div style="background: white; padding: 24px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="color: #555; font-size: 16px; margin-bottom: 16px;">
+            Tu transferencia ha sido procesada correctamente.
+          </p>
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 24px 0; padding: 20px; background: #f0f9ff; border-radius: 8px;">
+            <div style="text-align: center; flex: 1;">
+              ${originLogoUrl ? `<img src="${originLogoUrl}" alt="Origen" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+              <div style="font-size: 14px; color: #666;">Tu cuenta</div>
+            </div>
+            
+            <div style="text-align: center; flex: 1;">
+                ${appArrow ? `<img src="${appArrow}" alt="Flecha" style="width: 60px; height: 20px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+            </div>
+            
+            <div style="text-align: center; flex: 1;">
+              ${destinationLogoUrl ? `<img src="${destinationLogoUrl}" alt="Destino" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+              <div style="font-size: 14px; color: #666;">${destinationAffiliate}</div>
+            </div>
+          </div>
+          
+          <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px;">
+            <div style="margin-bottom: 12px;">
+              <span style="color: #666; font-size: 14px;">Monto transferido:</span>
+              <span style="color: #26A69A; font-size: 24px; font-weight: bold; float: right;">$${amount.toFixed(2)}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <span style="color: #666; font-size: 14px;">Destinatario:</span>
+              <span style="color: #333; font-weight: 500; float: right;">${recipientName}</span>
+            </div>
+            <div>
+              <span style="color: #666; font-size: 14px;">ID de transacción:</span>
+              <span style="color: #888; font-size: 12px; float: right;">${movementId}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 24px;">
+          <p style="color: #666; font-size: 14px;">Gracias por usar EcuaRed Transfer</p>
+          <span style="color: #aaa; font-size: 13px;">Equipo de EcuaRed Transfer</span>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: emailConfig.from,
+      to: email,
+      subject: `Transferencia realizada - $${amount.toFixed(2)}`,
+      html: htmlContent
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      return { success: true };
+    } catch (error) {
+      console.error('Error enviando correo de transferencia enviada:', error);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Envía un correo de notificación al destinatario de una transferencia
+   * @param {Object} params
+   * @param {string} params.email - Email del destinatario
+   * @param {string} params.senderName - Nombre del remitente
+   * @param {number} params.amount - Monto recibido
+   * @param {string} params.movementId - ID del movimiento
+   * @param {string} params.originLogoUrl - URL del logo de origen
+   * @param {string} params.destinationLogoUrl - URL del logo de destino
+   * @param {string} params.destinationAffiliate - Nombre del afiliado destino
+   */
+  async sendTransferReceivedEmail({ email, senderName, amount, movementId, originLogoUrl, destinationLogoUrl, destinationAffiliate }) {
+    const appLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+    const appArrow = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Farrows%2Farrow.png?alt=media&token=e24d66ea-3ff6-48c8-8ce4-58f0a8e73e70';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7fafc; padding: 32px; border-radius: 12px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.07);">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="${appLogoUrl}" alt="EcuaRed Transfer" style="width: 80px; height: 80px; border-radius: 16px; margin-bottom: 12px;" />
+          <h2 style="color: #10b981; margin-bottom: 8px;">¡Has Recibido una Transferencia!</h2>
+        </div>
+        
+        <div style="background: white; padding: 24px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="color: #555; font-size: 16px; margin-bottom: 16px;">
+            Has recibido una transferencia en tu cuenta de <strong>${destinationAffiliate}</strong>.
+          </p>
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 24px 0; padding: 20px; background: #f0fdf4; border-radius: 8px;">
+            <div style="text-align: center; flex: 1;">
+              ${originLogoUrl ? `<img src="${originLogoUrl}" alt="Origen" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+              <div style="font-size: 14px; color: #666;">Remitente</div>
+            </div>
+            
+            <div style="text-align: center; flex: 1;">
+                ${appArrow ? `<img src="${appArrow}" alt="Flecha" style="width: 60px; height: 20px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+            </div>
+            
+            <div style="text-align: center; flex: 1;">
+              ${destinationLogoUrl ? `<img src="${destinationLogoUrl}" alt="Destino" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 8px;" />` : ''}
+              <div style="font-size: 14px; color: #666;">Tu cuenta</div>
+            </div>
+          </div>
+          
+          <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px;">
+            <div style="margin-bottom: 12px;">
+              <span style="color: #666; font-size: 14px;">Monto recibido:</span>
+              <span style="color: #10b981; font-size: 24px; font-weight: bold; float: right;">$${amount.toFixed(2)}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <span style="color: #666; font-size: 14px;">Remitente:</span>
+              <span style="color: #333; font-weight: 500; float: right;">${senderName}</span>
+            </div>
+            <div>
+              <span style="color: #666; font-size: 14px;">ID de transacción:</span>
+              <span style="color: #888; font-size: 12px; float: right;">${movementId}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 24px;">
+          <p style="color: #666; font-size: 14px;">Gracias por usar EcuaRed Transfer</p>
+          <span style="color: #aaa; font-size: 13px;">Equipo de EcuaRed Transfer</span>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: emailConfig.from,
+      to: email,
+      subject: `Has recibido una transferencia - $${amount.toFixed(2)}`,
+      html: htmlContent
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      return { success: true };
+    } catch (error) {
+      console.error('Error enviando correo de transferencia recibida:', error);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Obtiene los logos de las instituciones afiliadas
+   * @param {string} originCollectionName - Nombre de la colección origen
+   * @param {string} destinationCollectionName - Nombre de la colección destino
+   * @returns {Object} { originLogoUrl, destinationLogoUrl }
+   */
+  async getAffiliateLogos(originCollectionName, destinationCollectionName) {
+    try {
+      let originLogoUrl = '';
+      let destinationLogoUrl = '';
+
+      // Obtener logo de origen
+      if (originCollectionName) {
+        const originDoc = await db.collection('EcuaRed_Transfer_Affiliates').doc(originCollectionName).get();
+        if (originDoc.exists) {
+          originLogoUrl = originDoc.data().logo || '';
+        }
+      }
+
+      // Obtener logo de destino
+      if (destinationCollectionName) {
+        const destinationDoc = await db.collection('EcuaRed_Transfer_Affiliates').doc(destinationCollectionName).get();
+        if (destinationDoc.exists) {
+          destinationLogoUrl = destinationDoc.data().logo || '';
+        }
+      }
+
+      return { originLogoUrl, destinationLogoUrl };
+    } catch (error) {
+      console.error('Error obteniendo logos de afiliados:', error);
+      return { originLogoUrl: '', destinationLogoUrl: '' };
+    }
   }
 }
 

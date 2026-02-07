@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bodyParser from 'body-parser';
 import { stripe } from '../config/stripe.js';
 import { db } from '../config/firebase.js';
-import { emailService } from '../services/send_email.js';
+import { emailService } from '../services/send_email_service.js';
 import { getFeesByRecharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
 import { processCompleteTransaction } from '../services/movements_service.js';
 import { centsToAmount } from '../utils/cents_to_amount.js';
@@ -89,7 +89,7 @@ async function handleIssuingAuthorization(event) {
   }
 
   const userData = userSnap.data();
-  const currentBalance = parseFloat(userData.saldoPAYSAT || 0);
+  const currentBalance = parseFloat(userData.balance || 0);
 
   console.log(`🏦 Saldo PAYSAT actual de ${paysatUID}: ${currentBalance} (main webhook)`);
 
@@ -460,11 +460,11 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
         const userData = userDoc.data();
         
-        const userName = userData.nombreCompleto || 
-                        userData.nombres || 
-                        userData.primerNombre ||
+        const userName = userData.fullName || 
+                        userData.names || 
+                        userData.firstName ||
                         'Usuario';
-        const userEmail = userData.correo || 'no-email@paysat.com';
+        const userEmail = userData.email || 'no-email@paysat.com';
         
         console.log('👤 Datos del usuario obtenidos:', userName, userEmail);
         

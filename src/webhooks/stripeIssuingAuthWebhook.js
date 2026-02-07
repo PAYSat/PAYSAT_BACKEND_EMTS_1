@@ -114,7 +114,7 @@ router.post(
         }
 
         const userData = userSnap.data();
-        const currentBalance = parseFloat(userData.saldoPAYSAT || 0);
+        const currentBalance = parseFloat(userData.balance || 0);
 
         console.log(`🏦 Saldo PAYSAT actual de ${paysatUID}: ${currentBalance}`);
 
