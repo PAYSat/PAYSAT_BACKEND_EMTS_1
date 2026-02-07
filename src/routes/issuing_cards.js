@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../config/firebase.js';
 import { createVirtualCardForUser, CardholderRequirementsError } from '../services/stripeIssuingService.js';
+import { createCardBuyMovement, createCardDepositMovement } from '../services/movements_service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -59,54 +60,40 @@ router.post('/virtual', async (req, res) => {
     const now = new Date();
 
     // 2.1 Movimiento: compra de tarjeta virtual (sale de la cuenta del usuario)
-    const buyMovementId = `buy_virtual_card_${uuidv4()}`;
-    await db.collection('PaySat_Account_Movements').doc(buyMovementId).set({
-      typeMovement: 'buy',
+    const buyResult = await createCardBuyMovement(paysatUID, {
       amount: costParsed,
       amount_cents: amountCents,
       currency: currency.toUpperCase(),
-      paysatUID,
       email: userEmail,
       PAYSATAccountNumber: userAccountNumber,
-      from: 'Emission_PAYSAT_Virtual_Card',
-      description: 'Emission_PAYSAT_Virtual_Card',
-      createdAt: now,
       card_id: card.id,
-      provider: 'stripe_issuing',
     });
+
+    if (!buyResult.success) {
+      console.error('❌ Error creando movimiento de compra:', buyResult.error);
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Error creando movimiento de compra',
+        details: buyResult.error 
+      });
+    }
 
     // 2.2 Movimiento: depósito a la "cuenta PAYSAT" por el mismo valor (contable)
-    const depositDocId = `deposit_virtual_card_${uuidv4()}`;
-    
-    // HARDCODED TEMPORALMENTE - VALORES CORRECTOS
-    // const CORRECT_UID = '93xxiCL2qJX91rxnPy2PaBsxrWo1';
-    // const CORRECT_EMAIL = 'paysat.account@paysatmoney.com';
-    // const CORRECT_NUMBER = 'JS5670370';
-    
-    // console.log('🔍 DEBUG issuing_cards - Valores hardcodeados:', {
-    //   CORRECT_UID, CORRECT_EMAIL, CORRECT_NUMBER
-    // });
-
-    console.log('⚠️ DEBUG issuing_cards - Variables de entorno:', {
-      PAYSAT_MAIN_ACCOUNT_UID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
-      PAYSAT_MAIN_ACCOUNT_EMAIL: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
-      PAYSAT_MAIN_ACCOUNT_NUMBER: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER
-    });
-    
-    await db.collection('PaySat_Account_Movements').doc(depositDocId).set({
-      typeMovement: 'deposit',
+    const depositResult = await createCardDepositMovement({
       amount: costParsed,
       amount_cents: amountCents,
       currency: currency.toUpperCase(),
-      paysatUID: process.env.PAYSAT_MAIN_ACCOUNT_UID,
-      email: process.env.PAYSAT_MAIN_ACCOUNT_EMAIL,
-      PAYSATAccountNumber: process.env.PAYSAT_MAIN_ACCOUNT_NUMBER,
-      from: 'Deposit_PAYSAT_Virtual_Card',
-      description: `Emission_PAYSAT_Virtual_Card usr: ${paysatUID}`,
-      createdAt: now,
       card_id: card.id,
-      provider: 'stripe_issuing',
-    });
+    }, paysatUID);
+
+    if (!depositResult.success) {
+      console.error('❌ Error creando movimiento de depósito:', depositResult.error);
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Error creando movimiento de depósito',
+        details: depositResult.error 
+      });
+    }
 
     // 2.3 Registrar tarjeta en una colección “friendly” si quieres
     // Obtener información de tarjetas del usuario

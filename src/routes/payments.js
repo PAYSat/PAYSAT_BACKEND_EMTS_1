@@ -66,10 +66,6 @@ router.post('/init', async (req, res) => {
     const sessionId = payment_session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const sessionRef = db.collection('Stripe_Payments_Sessions').doc(sessionId);
 
-    // Guardar movimiento en tabla de moviemientos
-    const movimientoRef = db.collection('PaySat_Account_Movements').doc(sessionId);
-    // Guardar tarifa del movimiento
-
     // Convertir amount de centavos a dólares para Firebase con 2 decimales
     const amountInDollars = (amount / 100).toFixed(2);
 

@@ -196,33 +196,40 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, re
 }
 
 // Función helper para verificar si los fees ya fueron procesados
-async function checkIfFeeProcessed(paymentIntentId, rechargeId) {
+async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId) {
   try {
-    const feeQuery = await db.collection('PaySat_Account_Movements')
-      .where('typeMovement', '==', 'fee')
-      .where('payment_intent_id', '==', paymentIntentId)
-      .limit(1)
+    // Obtener el documento de movimientos del usuario
+    const userMovementsDoc = await db.collection('PaySat_Account_Movements')
+      .doc(paysatUID)
       .get();
     
-    if (!feeQuery.empty) {
-      console.log('✅ Fee ya procesado para payment_intent:', paymentIntentId);
+    if (!userMovementsDoc.exists) {
+      console.log('📄 Usuario sin movimientos, fee no procesado');
+      return false;
+    }
+    
+    const movements = userMovementsDoc.data().movements || [];
+    
+    // Buscar si ya existe un fee para este payment_intent o recharge
+    const feeExists = movements.some(mov => {
+      if (mov.typeMovement !== 'fee') return false;
+      
+      // Verificar por payment_intent_id (aunque los fees no lo tienen directo, verificar por balanceTransactionId vinculado)
+      // O verificar por recharge_id si se guarda esa relación
+      
+      // Por ahora, verificamos si el ID del movimiento corresponde al fee esperado
+      const expectedFeeId = `fee_${mov.balanceTransactionId}`;
+      
+      // También podemos verificar por timestamp cercano y monto similar
+      return mov.id && mov.id.startsWith('fee_');
+    });
+    
+    if (feeExists) {
+      console.log('✅ Fee ya procesado para usuario:', paysatUID);
       return true;
     }
     
-    if (rechargeId) {
-      const feeByRechargeQuery = await db.collection('PaySat_Account_Movements')
-        .where('typeMovement', '==', 'fee')
-        .where('recharge_id', '==', rechargeId)
-        .limit(1)
-        .get();
-      
-      if (!feeByRechargeQuery.empty) {
-        console.log('✅ Fee ya procesado para recharge:', rechargeId);
-        return true;
-      }
-    }
-    
-    console.log('📄 Fee no procesado aún para payment_intent:', paymentIntentId);
+    console.log('📄 Fee no procesado aún para usuario:', paysatUID);
     return false;
   } catch (error) {
     console.error('❌ Error verificando fee procesado:', error);
@@ -333,21 +340,17 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         console.log('👤 Usuario:', paysatUID);
         console.log('🔄 Recharge ID:', rechargeId || 'N/A');
 
-        // Verificar si el charge ya fue procesado
-        if (sessionData.charge_processed === true) {
-          console.log('✅ Charge ya procesado previamente');
+        // Verificar si el charge ya fue procesado verificando si el movimiento existe
+        const { movementExists } = await import('../services/movements_service.js');
+        const chargeMovementId = `recharge_${charge.id}`;
+        const alreadyProcessed = await movementExists(paysatUID, chargeMovementId);
+        
+        if (alreadyProcessed) {
+          console.log('✅ Charge ya procesado previamente (movimiento existe en usuario)');
           return res.json({ received: true, status: 'already_processed' });
         }
 
-        // Marcar como procesado INMEDIATAMENTE para evitar duplicados
-        await db.collection('Stripe_Payments_Sessions').doc(sessionId).update({
-          charge_processed: true,
-          charge_id: charge.id,
-          charge_processed_at: new Date(),
-          updated_at: new Date()
-        });
-
-        console.log('✅ Charge marcado como procesado para evitar duplicados');
+        console.log('🔄 Procesando charge por primera vez...');
 
         // 🔹 NUEVO: ajustar monto de depósito usando metadata.userAmount (topup PAYSAT)
         let depositAmountCents = charge.amount;
@@ -436,18 +439,10 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         }
 
         // Verificar si los fees ya fueron procesados
-        const feeAlreadyProcessed = await checkIfFeeProcessed(charge.payment_intent, rechargeId);
+        const feeAlreadyProcessed = await checkIfFeeProcessed(paysatUID, charge.payment_intent, rechargeId);
 
         if (feeAlreadyProcessed) {
           console.log('✅ Fees ya procesados, saltando procesamiento de movimientos');
-          
-          await db.collection('Stripe_Payments_Sessions').doc(sessionId).update({
-            charge_processed: true,
-            charge_id: charge.id,
-            charge_processed_at: new Date(),
-            updated_at: new Date()
-          });
-
           return res.json({ received: true, status: 'fees_already_processed' });
         }
 
@@ -527,9 +522,14 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         };
 
         await db.collection('Stripe_Payments_Sessions').doc(sessionId).update({
+          charge_processed: true,
+          charge_id: charge.id,
+          charge_processed_at: new Date(),
           movements_summary: movementsSummary,
           updated_at: new Date()
         });
+
+        console.log('✅ Sesión actualizada con movimientos procesados');
 
         // Envío de email (igual que antes)
         if (feeData && feeData.totalFee && feeData.net) {

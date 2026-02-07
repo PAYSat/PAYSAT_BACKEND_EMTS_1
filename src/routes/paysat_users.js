@@ -21,12 +21,9 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
   let { paysatUID } = _req.params;
 
   try {
-    // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
-
     // Limpiar el paysatUID de caracteres no deseados al inicio
     if (paysatUID.startsWith(':')) {
       paysatUID = paysatUID.substring(1);
-    //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
     }
 
     // Validar que paysatUID no esté vacío después de la limpieza
@@ -37,14 +34,13 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
       });
     }
 
-    // Obtener los movimientos del usuario desde PaySat_Account_Movements
-    const movementsSnapshot = await db.collection('PaySat_Account_Movements')
-      .where('paysatUID', '==', paysatUID)
+    // Obtener el documento de movimientos del usuario (nueva estructura)
+    const userMovementsDoc = await db.collection('PaySat_Account_Movements')
+      .doc(paysatUID)
       .get();
 
-    console.log('📊 Movimientos encontrados:', movementsSnapshot.size);
-
-    if (movementsSnapshot.empty) {
+    if (!userMovementsDoc.exists) {
+      console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
       return res.json({
         ok: true,
         saldo: 0.00,
@@ -53,116 +49,107 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
       });
     }
 
-    // Procesar los movimientos y calcular el saldo
-    let saldoTotal = 0.00;
-    const transacciones = [];
+    const userData = userMovementsDoc.data();
+    const movements = userData.movements || [];
+    const balance = userData.balance || 0;
 
-    movementsSnapshot.forEach(doc => {
-      const data = doc.data();
-      const typeMovement = data.typeMovement;
-      const monto = parseFloat(data.amount) || 0.00;
+    console.log('📊 Movimientos encontrados:', movements.length);
+
+    if (movements.length === 0) {
+      return res.json({
+        ok: true,
+        saldo: balance,
+        data: [],
+        message: 'No se encontraron movimientos para este usuario'
+      });
+    }
+
+    // Procesar los movimientos para la respuesta
+    const transacciones = movements.map(mov => {
+      const typeMovement = mov.typeMovement;
       
-      // Calcular saldo según el tipo de movimiento
-      if (typeMovement === 'deposit' || typeMovement === 'recharge') {
-        saldoTotal += monto; // Sumar depósitos y recargas
-      } else if (typeMovement === 'buy' || typeMovement === 'recharge_card') {
-        saldoTotal -= monto; // Restar fees, compras y recargas de tarjeta
-      } else if (typeMovement === 'fee') {
-        saldoTotal -= parseFloat(data.totalFee);        // Aquí puedes manejar otros tipos de movimientos si es necesario
-      }
-
-      transacciones.push({
-        id: doc.id,
+      return {
+        id: mov.id,
         typeMovement: typeMovement,
-        amount: monto,
-        amount_cents: data.amount_cents || Math.round(monto * 100),
-        currency: data.currency || 'USD',
+        amount: mov.amount,
+        amount_cents: mov.amount_cents,
+        currency: mov.currency || 'USD',
         
         // Campos específicos según el tipo de movimiento
         ...(typeMovement === 'recharge' && {
-          payment_intent_id: data.payment_intent_id || null,
-          recharge_id: data.recharge_id || null,
-          status: data.status || null
+          payment_intent_id: mov.payment_intent_id || null,
+          recharge_id: mov.recharge_id || null,
+          charge_id: mov.charge_id || null,
+          status: mov.status || null,
+          userName: mov.userName || null,
+          userEmail: mov.userEmail || null,
         }),
         
         ...(typeMovement === 'fee' && {
-          paysatFee: data.paysatFee || null,
-          paysatFee_cents: data.paysatFee_cents || null,
-          totalFee: data.totalFee || null,
-          net: data.net || null,
-          balanceTransactionId: data.balanceTransactionId || null
+          paysatFee: mov.paysatFee || null,
+          paysatFee_cents: mov.paysatFee_cents || null,
+          totalFee: mov.totalFee || null,
+          net: mov.net || null,
+          balanceTransactionId: mov.balanceTransactionId || null,
+          stripe_fee: mov.stripe_fee || null,
+          stripe_fee_cents: mov.stripe_fee_cents || null,
         }),
         
         ...(typeMovement === 'deposit' && {
-          from: data.from || null,
-          description: data.description || null,
-          email: data.email || null
+          from: mov.from || null,
+          description: mov.description || null,
+          email: mov.email || null
         }),
 
         ...(typeMovement === 'buy' && {
-          from: data.from || null,
-          description: data.description || null,
-          email: data.email || null
+          from: mov.from || null,
+          description: mov.description || null,
+          email: mov.email || null
         }),
 
         ...(typeMovement === 'recharge_card' && {
-          from: data.from || null,
-          description: data.description || null,
-          email: data.email || null
+          from: mov.from || null,
+          description: mov.description || null,
+          email: mov.email || null
         }),
         
-        PAYSATAccountNumber: data.PAYSATAccountNumber || null,
-        
-        // Usar la fecha específica del movimiento (priorizar createdAt, luego updatedAt como fallback)
-        createdAt: data.createdAt ? data.createdAt : (data.updatedAt || new Date()),
-        
-        // Incluir también updatedAt si existe para referencia
-        ...(data.updatedAt && { updatedAt: data.updatedAt }),
-        
-        source: data.source || null
-      });
+        PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
+        createdAt: mov.createdAt || null,
+        updatedAt: mov.updatedAt || null,
+        source: mov.source || null
+      };
     });
 
-    // Ordenar transacciones por fecha y hora (más recientes primero - descendente)
+    // Ordenar transacciones por fecha (más recientes primero - descendente)
     transacciones.sort((a, b) => {
-      // Convertir las fechas, manejando tanto Date objects como Timestamps de Firestore
       let dateA, dateB;
       
       if (a.createdAt && typeof a.createdAt.toDate === 'function') {
-        // Es un Timestamp de Firestore
         dateA = a.createdAt.toDate();
       } else if (a.createdAt) {
-        // Es un Date object o string
         dateA = new Date(a.createdAt);
       } else {
-        dateA = new Date(0); // Fecha mínima como fallback
+        dateA = new Date(0);
       }
       
       if (b.createdAt && typeof b.createdAt.toDate === 'function') {
-        // Es un Timestamp de Firestore
         dateB = b.createdAt.toDate();
       } else if (b.createdAt) {
-        // Es un Date object o string
         dateB = new Date(b.createdAt);
       } else {
-        dateB = new Date(0); // Fecha mínima como fallback
+        dateB = new Date(0);
       }
       
-      // Validar que las fechas sean válidas
       const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
       const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
       
-      // Ordenamiento descendente: más recientes primero
       return timeB - timeA;
     });
 
-    // Calcular balanceAfter para cada transacción (en orden cronológico inverso)
+    // Calcular balanceAfter para cada transacción (en orden cronológico)
     let balanceAcumulado = 0.00;
-    
-    // Primero ordenamos cronológicamente (ascendente) para calcular balances
     const transaccionesOrdenCronologico = [...transacciones].reverse();
     
-    // Calcular balance acumulativo
     transaccionesOrdenCronologico.forEach(tx => {
       const monto = tx.amount;
       const typeMovement = tx.typeMovement;
@@ -176,23 +163,18 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
         balanceAcumulado -= tx.totalFee || 0;
       }
       
-      // Asignar balance después de la transacción
       tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
     });
 
-    // Redondear saldo a 2 decimales
-    saldoTotal = parseFloat(saldoTotal.toFixed(2));
-
-    console.log(`✅ Procesados ${transacciones.length} movimientos, saldo total: $${saldoTotal}`);
+    console.log(`✅ Procesados ${transacciones.length} movimientos, saldo: $${balance}`);
     
-    // Mostrar rango de fechas con manejo correcto de Timestamps
+    // Mostrar rango de fechas
     if (transacciones.length > 0) {
       const fechaMasReciente = transacciones[0].createdAt;
       const fechaMasAntigua = transacciones[transacciones.length - 1].createdAt;
       
       let fechaRecienteStr, fechaAntiguaStr;
       
-      // Convertir fechas para logging
       if (fechaMasReciente && typeof fechaMasReciente.toDate === 'function') {
         fechaRecienteStr = fechaMasReciente.toDate().toLocaleString();
       } else {
@@ -206,18 +188,14 @@ router.get('/account/transactions/history/:paysatUID', async (_req, res) => {
       }
       
       console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
-      console.log(`💰 Balance inicial: $0.00, Balance final: $${saldoTotal}`);
-    } else {
-      console.log('📅 Rango de fechas: sin movimientos');
     }
 
     res.json({
       ok: true,
-      saldo: saldoTotal,
+      saldo: balance,
       data: transacciones,
       summary: {
         total_transactions: transacciones.length,
-        total_sessions_found: movementsSnapshot.size,
         currency: 'USD'
       }
     });
@@ -236,12 +214,9 @@ router.get('/account/transactions/balance/:paysatUID', async (_req, res) => {
   let { paysatUID } = _req.params;
 
   try {
-    // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
-
     // Limpiar el paysatUID de caracteres no deseados al inicio
     if (paysatUID.startsWith(':')) {
       paysatUID = paysatUID.substring(1);
-    //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
     }
 
     // Validar que paysatUID no esté vacío después de la limpieza
@@ -252,50 +227,31 @@ router.get('/account/transactions/balance/:paysatUID', async (_req, res) => {
       });
     }
 
-    // Obtener los movimientos del usuario desde PaySat_Account_Movements
-    const movementsSnapshot = await db.collection('PaySat_Account_Movements')
-      .where('paysatUID', '==', paysatUID)
+    // Obtener el documento de movimientos del usuario (nueva estructura)
+    const userMovementsDoc = await db.collection('PaySat_Account_Movements')
+      .doc(paysatUID)
       .get();
 
-    console.log('📊 Movimientos encontrados:', movementsSnapshot.size);
-
-    if (movementsSnapshot.empty) {
+    if (!userMovementsDoc.exists) {
+      console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
       return res.json({
         ok: true,
-        data: [],
+        data: {
+          saldo: 0.00
+        },
         message: 'No se encontraron movimientos para este usuario'
       });
     }
 
-    // Procesar los movimientos y calcular el saldo
-    let saldoTotal = 0.00;
+    const userData = userMovementsDoc.data();
+    const balance = userData.balance || 0;
 
-    console.log('📊 Movimientos encontrados:', movementsSnapshot);
-
-    movementsSnapshot.forEach(doc => {
-      const data = doc.data();
-      const typeMovement = data.typeMovement;
-      const monto = parseFloat(data.amount) || 0.00;
-      
-      // Calcular saldo según el tipo de movimiento
-      if (typeMovement === 'deposit' || typeMovement === 'recharge') {
-        saldoTotal += monto; // Sumar depósitos y recargas
-      } else if (typeMovement === 'buy'|| typeMovement === 'recharge_card') {
-        saldoTotal -= monto; // Restar fees, compras y recargas de tarjeta
-      } else if (typeMovement === 'fee') {
-        saldoTotal -= parseFloat(data.totalFee);        // Aquí puedes manejar otros tipos de movimientos si es necesario
-      }
-
-    });
-
-
-    // Redondear saldo a 2 decimales
-    saldoTotal = parseFloat(saldoTotal.toFixed(2));
-    console.log(`✅ Saldo total calculado: $${saldoTotal}`);
+    console.log(`✅ Saldo total: $${balance}`);
+    
     res.json({
       ok: true,
       data: {
-        saldo: saldoTotal
+        saldo: balance
       }      
     });
 
