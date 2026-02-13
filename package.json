@@ -1,5 +1,5 @@
 {
-  "name": "marqeta-stripe-backend",
+  "name": "paysat-backend",
   "version": "1.0.0",
   "main": "src/server.js",
   "type": "module",
@@ -12,7 +12,7 @@
     "build": "echo 'No build step required'"
   },
   "dependencies": {
-    "axios": "^1.13.0",
+    "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
