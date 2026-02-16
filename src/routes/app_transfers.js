@@ -9,7 +9,14 @@ const appTransfersController = new AppTransfersController();
 const appPaySatTransferController = new AppPaySatTransferController();
 const linkedUserAccountTransferController = new LinkedUserAccountTransferController();
 
-router.post('/user/account/new/register', linkedUserAccountTransferController.createNewLinkedAccount);
+router.get('/user/accounts/list/:id', linkedUserAccountTransferController.listUserOwnAccounts);
+
+router.get('/user/account/country/list', linkedUserAccountTransferController.listAccountCountry);
+router.get('/affiliates/list', linkedUserAccountTransferController.listAffiliates);
+router.get('/user/account/type/list', linkedUserAccountTransferController.listAccountTypes);
+router.get('/user/document/type/list', linkedUserAccountTransferController.listDocumentTypes);
+
+router.post('/user/register/own/account/validate', linkedUserAccountTransferController.validateNewOwnAccount);
 router.post('/user/account/destination/register', linkedUserAccountTransferController.createDestinationLinkedAccount);
 
 router.post('/send', appTransfersController.send);

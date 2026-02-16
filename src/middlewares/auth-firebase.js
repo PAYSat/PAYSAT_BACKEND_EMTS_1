@@ -8,6 +8,7 @@ export async function authFirebaseRequired(req, res, next) {
   if (req.path === '/auth/phone/verify-otp') return next();
   if (req.path === '/api/temp/subir-datos') return next();
   if (req.path === '/api/temp/codigos-uuid') return next();
+  if (req.path === '/api/temp/eliminar-bancos-cooperativas') return next();
 
   const hdr = req.headers.authorization || '';
   const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;

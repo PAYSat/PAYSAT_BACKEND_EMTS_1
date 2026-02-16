@@ -6,6 +6,7 @@ const router = Router();
 const appTempSubirDatos = new AppTempSubirDatosController();
 
 router.post('/subir-datos', appTempSubirDatos.subirDatos);
+router.delete('/eliminar-bancos-cooperativas', appTempSubirDatos.eliminarBancosyCooperativas);
 router.get('/codigos-uuid', appTempSubirDatos.codigosUuid);
 
 
