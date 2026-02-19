@@ -29,7 +29,7 @@ class AppTempSubirDatosController {
                     customerEscrow: typeof doc.customerEscrow === "number" ? doc.customerEscrow : 0.0,
                     customerTotal: typeof doc.customerTotal === "number" ? doc.customerTotal : 0.0,
                     customerMovements: doc.customerMovements ?? [],
-                    customerAccountNumberType: doc.customerAccountNumberType ?? "",
+                    customerAccountTypeName: doc.customerAccountTypeName ?? "",
                     });
                 }
 
@@ -60,12 +60,23 @@ class AppTempSubirDatosController {
             }
 
             // Obtener los nombres de las colecciones a eliminar (nombres de documentos)
+            // Excluir Banco_PaySat_Money
             const collectionsToDelete = [];
             affiliatesSnapshot.forEach(doc => {
-                collectionsToDelete.push(doc.id);
+                if (doc.id !== 'Banco_PaySat_Money') {
+                    collectionsToDelete.push(doc.id);
+                }
             });
 
+            if (collectionsToDelete.length === 0) {
+                return res.json({
+                    ok: true,
+                    message: 'No hay colecciones para eliminar (Banco_PaySat_Money se mantiene intacto)'
+                });
+            }
+
             console.log(`\n→ Colecciones a eliminar: ${collectionsToDelete.join(', ')}`);
+            console.log(`\n→ Colección excluida: Banco_PaySat_Money`);
 
             let totalDeleted = 0;
             const batchSize = 500;
@@ -138,7 +149,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -149,7 +160,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -160,7 +171,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -171,7 +182,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -182,7 +193,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -193,7 +204,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -204,7 +215,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -215,7 +226,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -226,7 +237,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -237,7 +248,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Cooperativa_Mushuk_Runa": [
@@ -250,7 +261,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7541.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -261,7 +272,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 128.44,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105874512",
@@ -272,7 +283,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 625.18,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1814125878",
@@ -283,7 +294,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1230.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -294,7 +305,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 142.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0156255511",
@@ -305,7 +316,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1487.22,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -316,7 +327,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2058.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -327,7 +338,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -338,7 +349,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Cooperativa_Cacpeco": [
@@ -351,7 +362,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 148.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -362,7 +373,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1285.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -373,7 +384,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3652.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -384,7 +395,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1623.58,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149783",
@@ -395,7 +406,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2588.99,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -406,7 +417,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Cooperativa_Jardin_Azuayo": [
@@ -419,7 +430,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -430,7 +441,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -441,7 +452,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -452,7 +463,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -463,7 +474,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -474,7 +485,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -485,7 +496,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -496,7 +507,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -507,7 +518,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -518,7 +529,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Austro": [
@@ -531,7 +542,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -542,7 +553,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -553,7 +564,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -564,7 +575,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -575,7 +586,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -586,7 +597,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -597,7 +608,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -608,7 +619,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -619,7 +630,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -630,7 +641,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1258.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -641,7 +652,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Pichincha": [
@@ -654,7 +665,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7541.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -665,7 +676,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 128.44,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105874512",
@@ -676,7 +687,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 625.18,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1814125878",
@@ -687,7 +698,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1230.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -698,7 +709,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 142.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0156255511",
@@ -709,7 +720,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1487.22,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -720,7 +731,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2058.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -731,7 +742,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -742,7 +753,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 10487.24,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -753,7 +764,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Guayaquil": [
@@ -766,7 +777,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 148.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -777,7 +788,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1285.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -788,7 +799,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3652.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -799,7 +810,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1623.58,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -810,7 +821,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 142.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0156255511",
@@ -821,7 +832,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1487.22,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -832,7 +843,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Pacifico": [
@@ -845,7 +856,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -856,7 +867,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -867,7 +878,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -878,7 +889,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -889,7 +900,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -900,7 +911,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -911,7 +922,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -922,7 +933,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -933,7 +944,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -944,7 +955,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_JPMorgan_Chase": [
@@ -957,7 +968,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -968,7 +979,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -979,7 +990,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -990,7 +1001,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -1001,7 +1012,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -1012,7 +1023,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -1023,7 +1034,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -1034,7 +1045,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -1045,7 +1056,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -1056,7 +1067,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Bank_of_America": [
@@ -1069,7 +1080,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 148.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -1080,7 +1091,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1285.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -1091,7 +1102,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3652.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -1102,7 +1113,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1623.58,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -1113,7 +1124,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 142.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0156255511",
@@ -1124,7 +1135,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1487.22,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -1135,7 +1146,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Wells_Fargo": [
@@ -1148,7 +1159,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7541.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -1159,7 +1170,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 128.44,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105874512",
@@ -1170,7 +1181,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 625.18,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1814125878",
@@ -1181,7 +1192,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1230.25,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -1192,7 +1203,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 142.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0156255511",
@@ -1203,7 +1214,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1487.22,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1854256512",
@@ -1214,7 +1225,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2058.14,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149717",
@@ -1225,7 +1236,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -1236,7 +1247,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 10487.24,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -1247,7 +1258,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
     "Banco_Citigroup": [
@@ -1260,7 +1271,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 825.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102960614",
@@ -1271,7 +1282,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2724.85,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0102030405",
@@ -1282,7 +1293,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 2654.3,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0105060407",
@@ -1293,7 +1304,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 25148.71,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "1512243687",
@@ -1304,7 +1315,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 3417.1,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0123659874",
@@ -1315,7 +1326,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 1526.32,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0506040527",
@@ -1326,7 +1337,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 4215.02,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0503149786",
@@ -1337,7 +1348,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424",
@@ -1348,7 +1359,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 7005.36,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         },
         {
         "customerID": "0101296424001",
@@ -1359,7 +1370,7 @@ const DATA = {
         "customerEscrow": 0,
         "customerTotal": 0,
         "customerMovements": [],
-        "customerAccountNumberType": "Ahorros"
+        "customerAccountTypeName": "Ahorros"
         }
     ],
 };
