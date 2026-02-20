@@ -11,35 +11,54 @@ async function autoFixDeposits() {
   console.log('🔧 ============================================\n');
   
   try {
-    // Buscar TODOS los depósitos con datos antiguos
-    const depositsQuery = await db.collection('PaySat_Account_Movements')
-      .where('typeMovement', '==', 'deposit')
-      .get();
+    // Buscar TODOS los documentos de usuarios en Banco_PaySat_Money
+    const usersQuery = await db.collection('Banco_PaySat_Money').get();
     
-    console.log(`📊 Total de depósitos encontrados: ${depositsQuery.size}\n`);
+    console.log(`📊 Total de usuarios encontrados: ${usersQuery.size}\n`);
     
     let fixedCount = 0;
     let skippedCount = 0;
+    let totalDepositsProcessed = 0;
     
-    for (const doc of depositsQuery.docs) {
+    for (const doc of usersQuery.docs) {
       const data = doc.data();
+      const movements = data.customerMovements || [];
       
-      // Verificar si tiene datos incorrectos
-      if (data.paysatUID !== CORRECT_UID || data.PAYSATAccountNumber !== CORRECT_NUMBER) {
-        console.log(`❌ Corrigiendo: ${doc.id}`);
-        console.log(`   Antes: UID=${data.paysatUID}, NUM=${data.PAYSATAccountNumber}`);
-        
-        await db.collection('PaySat_Account_Movements').doc(doc.id).update({
-          paysatUID: CORRECT_UID,
-          email: CORRECT_EMAIL,
-          PAYSATAccountNumber: CORRECT_NUMBER,
-          updatedAt: new Date(),
-          auto_fixed: true,
-          auto_fixed_at: new Date()
+      // Buscar depósitos con datos incorrectos en el array de movimientos
+      let needsUpdate = false;
+      const updatedMovements = movements.map(mov => {
+        if (mov.typeMovement === 'deposit') {
+          totalDepositsProcessed++;
+          
+          // Verificar si tiene datos incorrectos
+          if (mov.paysatUID !== CORRECT_UID || mov.PAYSATAccountNumber !== CORRECT_NUMBER) {
+            console.log(`❌ Corrigiendo depósito en usuario: ${doc.id}, movimiento: ${mov.id}`);
+            console.log(`   Antes: UID=${mov.paysatUID}, NUM=${mov.PAYSATAccountNumber}`);
+            
+            needsUpdate = true;
+            fixedCount++;
+            
+            return {
+              ...mov,
+              paysatUID: CORRECT_UID,
+              email: CORRECT_EMAIL,
+              PAYSATAccountNumber: CORRECT_NUMBER,
+              updatedAt: new Date(),
+              auto_fixed: true,
+              auto_fixed_at: new Date()
+            };
+          }
+        }
+        return mov;
+      });
+      
+      // Si se encontraron cambios, actualizar el documento
+      if (needsUpdate) {
+        await db.collection('Banco_PaySat_Money').doc(doc.id).update({
+          customerMovements: updatedMovements,
+          lastUpdated: new Date()
         });
-        
-        console.log(`   ✅ Corregido a: UID=${CORRECT_UID}, NUM=${CORRECT_NUMBER}\n`);
-        fixedCount++;
+        console.log(`   ✅ Usuario ${doc.id} actualizado\n`);
       } else {
         skippedCount++;
       }
@@ -47,8 +66,9 @@ async function autoFixDeposits() {
     
     console.log('\n🎉 ============================================');
     console.log(`✅ Depósitos corregidos: ${fixedCount}`);
-    console.log(`⏩ Depósitos correctos (sin cambios): ${skippedCount}`);
-    console.log(`📊 Total procesados: ${depositsQuery.size}`);
+    console.log(`⏩ Usuarios sin cambios: ${skippedCount}`);
+    console.log(`📊 Total depósitos procesados: ${totalDepositsProcessed}`);
+    console.log(`📊 Total usuarios procesados: ${usersQuery.size}`);
     console.log('🎉 ============================================\n');
     
   } catch (error) {

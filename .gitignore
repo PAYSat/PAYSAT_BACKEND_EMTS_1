@@ -1,5 +1,14 @@
+# Scripts de despliegue
 refrescar_node.sh
 verify-deploy.sh
+
+# Scripts temporales y de testing
+auto_fix_deposits.js
+test_endpoint.js
+
+# Documentación temporal/debug
+VERIFICACION_WEBHOOKS.md
+DEPLOY.md
 
 # Env files
 .env
@@ -82,3 +91,6 @@ node_modules/
 # Secrets
 secrets/
 firebase-service-account.json
+
+# Debug scripts (testing tools)
+debug_scripts/

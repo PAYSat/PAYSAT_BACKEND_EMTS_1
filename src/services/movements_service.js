@@ -16,46 +16,45 @@ const PAYSAT_FEE_AMOUNT = "1.00";
  */
 async function addMovementToUser(paysatUID, movementData, balanceChange) {
   try {
-    console.log('🔧 addMovementToUser - Inicio:', { paysatUID, movementId: movementData.id, balanceChange });
-    
-    const userMovementsRef = db.collection('PaySat_Account_Movements').doc(paysatUID);
+    const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatUID);
     const userMovementsDoc = await userMovementsRef.get();
-    
-    console.log('🔧 Documento existe:', userMovementsDoc.exists);
     
     // Agregar timestamp al movimiento
     const movementWithTimestamp = {
       ...movementData,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
     };
+    
+    // Calcular el cambio en el total (siempre es el valor absoluto)
+    const totalChange = Math.abs(balanceChange);
     
     if (!userMovementsDoc.exists) {
       // Si no existe el documento, crearlo con el primer movimiento
-      console.log('🔧 Creando nuevo documento para usuario:', paysatUID);
       await userMovementsRef.set({
-        balance: balanceChange,
-        balance_cents: Math.round(balanceChange * 100),
-        movements: [movementWithTimestamp],
-        lastUpdated: new Date(),
+        customerBalance: parseFloat(balanceChange.toFixed(2)),
+        customerTotal: parseFloat(totalChange.toFixed(2)),
+        customerEscrow: 0,
+        customerMovements: [movementWithTimestamp],
+        lastUpdated: admin.firestore.Timestamp.now(),
         paysatUID: paysatUID,
       });
-      console.log('✅ Documento creado exitosamente');
+      console.log('✅ Documento creado en Banco_PaySat_Money:', paysatUID);
     } else {
-      // Si existe, agregar el movimiento y actualizar el balance
+      // Si existe, agregar el movimiento y actualizar el balance y total
       const currentData = userMovementsDoc.data();
-      const currentBalance = currentData.balance || 0;
+      const currentBalance = currentData.customerBalance || 0;
+      const currentTotal = currentData.customerTotal || 0;
       const newBalance = currentBalance + balanceChange;
-      
-      console.log('🔧 Actualizando documento existente. Balance actual:', currentBalance, 'Nuevo balance:', newBalance);
+      const newTotal = currentTotal + totalChange;
       
       await userMovementsRef.update({
-        balance: parseFloat(newBalance.toFixed(2)),
-        balance_cents: Math.round(newBalance * 100),
-        movements: admin.firestore.FieldValue.arrayUnion(movementWithTimestamp),
-        lastUpdated: new Date(),
+        customerBalance: parseFloat(newBalance.toFixed(2)),
+        customerTotal: parseFloat(newTotal.toFixed(2)),
+        customerMovements: admin.firestore.FieldValue.arrayUnion(movementWithTimestamp),
+        lastUpdated: admin.firestore.Timestamp.now(),
       });
-      console.log('✅ Documento actualizado exitosamente');
+      console.log('✅ Movimiento agregado a Banco_PaySat_Money:', paysatUID, '| Balance:', newBalance);
     }
     
     return { success: true, movementId: movementData.id };
@@ -74,14 +73,14 @@ async function addMovementToUser(paysatUID, movementData, balanceChange) {
  */
 async function movementExists(paysatUID, movementId) {
   try {
-    const userMovementsRef = db.collection('PaySat_Account_Movements').doc(paysatUID);
+    const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatUID);
     const userMovementsDoc = await userMovementsRef.get();
     
     if (!userMovementsDoc.exists) {
       return false;
     }
     
-    const movements = userMovementsDoc.data().movements || [];
+    const movements = userMovementsDoc.data().customerMovements || [];
     return movements.some(m => m.id === movementId);
   } catch (error) {
     console.error('❌ Error verificando existencia de movimiento:', error);

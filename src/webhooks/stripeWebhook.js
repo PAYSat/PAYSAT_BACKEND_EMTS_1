@@ -199,7 +199,7 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, re
 async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId) {
   try {
     // Obtener el documento de movimientos del usuario
-    const userMovementsDoc = await db.collection('PaySat_Account_Movements')
+    const userMovementsDoc = await db.collection('Banco_PaySat_Money')
       .doc(paysatUID)
       .get();
     
@@ -208,7 +208,7 @@ async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId) {
       return false;
     }
     
-    const movements = userMovementsDoc.data().movements || [];
+    const movements = userMovementsDoc.data().customerMovements || [];
     
     // Buscar si ya existe un fee para este payment_intent o recharge
     const feeExists = movements.some(mov => {

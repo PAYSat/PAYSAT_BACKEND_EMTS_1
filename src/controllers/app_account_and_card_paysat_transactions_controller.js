@@ -265,7 +265,7 @@ class AppAccountAndCardPaysatTransactionsController {
             }
         
             // Obtener el documento de movimientos del usuario (nueva estructura)
-            const userMovementsDoc = await db.collection('PaySat_Account_Movements')
+            const userMovementsDoc = await db.collection('Banco_PaySat_Money')
             .doc(paysatUID)
             .get();
         
@@ -281,7 +281,7 @@ class AppAccountAndCardPaysatTransactionsController {
             }
         
             const userData = userMovementsDoc.data();
-            const balance = userData.balance || 0;
+            const balance = userData.customerBalance || 0;
         
             console.log(`✅ Saldo total: $${balance}`);
             
@@ -531,7 +531,7 @@ class AppAccountAndCardPaysatTransactionsController {
             });
             }
 
-            // Obtener los movimientos del usuario desde PaySat_Account_Movements
+            // Obtener los movimientos de tarjeta del usuario desde PaySat_Card_Movements
             const movementsSnapshot = await db.collection('PaySat_Card_Movements')
             .where('paysatUID', '==', paysatUID)
             .get();
