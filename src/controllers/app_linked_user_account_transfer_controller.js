@@ -288,6 +288,8 @@ class LinkedUserAccountTransferController {
             
             // Preparar el objeto de la cuenta a guardar
             const newAccount = {
+                paysatUID: uid,
+                accountUID: `${affiliateId}-${accountNumber}`, // UID único para la cuenta combinando afiliado y número de cuenta
                 countryId,
                 countryName,
                 affiliateId,
@@ -503,6 +505,8 @@ class LinkedUserAccountTransferController {
             
             // Preparar el objeto de la cuenta a guardar
             const newAccount = {
+                paysatUID: uid,
+                accountUID: `${affiliateId}-${accountNumber}`, // UID único para la cuenta combinando afiliado y número de cuenta
                 countryId,
                 countryName,
                 affiliateId,
@@ -770,6 +774,406 @@ class LinkedUserAccountTransferController {
             return res.status(500).json({
                 ok: false,
                 message: 'Error al obtener los tipos de cuenta',
+                error: error.message
+            });
+        }
+    }
+
+    deleteOwnAccount = async (req, res) => {
+        try {
+            // Validar que el usuario esté autenticado
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            const uid = req.user.uid;
+            const { accountUID } = req.params;
+
+            // Validar que se envíe el accountUID
+            if (!accountUID) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El accountUID es requerido'
+                });
+            }
+
+            // Buscar el documento del usuario
+            const userAccountsRef = db.collection('PaySat_User_Registered_Accounts').doc(uid);
+            const userAccountsDoc = await userAccountsRef.get();
+
+            // Si no existe el documento
+            if (!userAccountsDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontraron cuentas registradas'
+                });
+            }
+
+            const userData = userAccountsDoc.data();
+            const ownAccounts = userData.ownAccounts || [];
+
+            // Buscar la cuenta a eliminar
+            const accountToDelete = ownAccounts.find(account => account.accountUID === accountUID);
+
+            if (!accountToDelete) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'Cuenta no encontrada'
+                });
+            }
+
+            // Bloquear eliminación de cuentas de PAYSAT MONEY LTD
+            if (accountToDelete.affiliateName && accountToDelete.affiliateName.toUpperCase() === 'PAYSAT MONEY LTD') {
+                return res.status(403).json({
+                    ok: false,
+                    message: 'No se puede eliminar cuentas de PAYSAT MONEY LTD'
+                });
+            }
+
+            // Filtrar el array para eliminar la cuenta
+            const updatedOwnAccounts = ownAccounts.filter(account => account.accountUID !== accountUID);
+
+            // Actualizar el documento
+            await userAccountsRef.update({
+                ownAccounts: updatedOwnAccounts
+            });
+
+            return res.status(200).json({
+                ok: true,
+                message: 'Cuenta eliminada exitosamente'
+            });
+
+        } catch (error) {
+            console.error('Error al eliminar cuenta propia:', error);
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al eliminar la cuenta',
+                error: error.message
+            });
+        }
+    }
+    
+    deleteDestinationAccount = async (req, res) => {
+        try {
+            // Validar que el usuario esté autenticado
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            const uid = req.user.uid;
+            const { accountUID } = req.params;
+
+            // Validar que se envíe el accountUID
+            if (!accountUID) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El accountUID es requerido'
+                });
+            }
+
+            // Buscar el documento del usuario
+            const userAccountsRef = db.collection('PaySat_User_Registered_Accounts').doc(uid);
+            const userAccountsDoc = await userAccountsRef.get();
+
+            // Si no existe el documento
+            if (!userAccountsDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontraron cuentas registradas'
+                });
+            }
+
+            const userData = userAccountsDoc.data();
+            const destinationAccounts = userData.destinationAccounts || [];
+
+            // Buscar la cuenta a eliminar
+            const accountToDelete = destinationAccounts.find(account => account.accountUID === accountUID);
+
+            if (!accountToDelete) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'Cuenta no encontrada'
+                });
+            }
+
+            // Filtrar el array para eliminar la cuenta
+            const updatedDestinationAccounts = destinationAccounts.filter(account => account.accountUID !== accountUID);
+
+            // Actualizar el documento
+            await userAccountsRef.update({
+                destinationAccounts: updatedDestinationAccounts
+            });
+
+            return res.status(200).json({
+                ok: true,
+                message: 'Cuenta eliminada exitosamente'
+            });
+
+        } catch (error) {
+            console.error('Error al eliminar cuenta de destino:', error);
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al eliminar la cuenta',
+                error: error.message
+            });
+        }
+    }
+
+    determinateTransferFee = async (req, res) => {
+        try {
+            // Validar que el usuario esté autenticado
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            const uid = req.user.uid;
+            const { originUID, destinationUID, amount } = req.body;
+
+            // Validar campos requeridos
+            if (!originUID || !destinationUID || !amount) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'Los campos originUID, destinationUID y amount son requeridos'
+                });
+            }
+
+            // Validar que el monto sea mayor a 0
+            if (amount <= 0) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El monto debe ser mayor a 0'
+                });
+            }
+
+            // Buscar cuenta origen en las cuentas del usuario autenticado
+            const userAccountsRef = db.collection('PaySat_User_Registered_Accounts').doc(uid);
+            const userAccountsDoc = await userAccountsRef.get();
+
+            if (!userAccountsDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontraron cuentas registradas para el usuario'
+                });
+            }
+
+            const userData = userAccountsDoc.data();
+            const ownAccounts = userData.ownAccounts || [];
+            const destinationAccounts = userData.destinationAccounts || [];
+
+            // Buscar cuenta origen en ownAccounts del usuario autenticado
+            const originAccount = ownAccounts.find(account => account.accountUID === originUID);
+
+            if (!originAccount) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'Cuenta origen no encontrada en tus cuentas propias'
+                });
+            }
+
+            // Buscar cuenta destino primero en las cuentas del usuario autenticado
+            let destinationAccount = ownAccounts.find(account => account.accountUID === destinationUID);
+            
+            // Si no está en ownAccounts, buscar en destinationAccounts
+            if (!destinationAccount) {
+                destinationAccount = destinationAccounts.find(account => account.accountUID === destinationUID);
+            }
+
+            // Si no está en las cuentas del usuario, buscar en otros usuarios
+            if (!destinationAccount) {
+                // Buscar en todos los documentos de PaySat_User_Registered_Accounts
+                const allUsersSnapshot = await db.collection('PaySat_User_Registered_Accounts').get();
+                
+                for (const doc of allUsersSnapshot.docs) {
+                    if (doc.id === uid) continue; // Saltar el usuario actual ya que ya lo buscamos
+                    
+                    const otherUserData = doc.data();
+                    const otherUserOwnAccounts = otherUserData.ownAccounts || [];
+                    
+                    destinationAccount = otherUserOwnAccounts.find(account => account.accountUID === destinationUID);
+                    
+                    if (destinationAccount) {
+                        break;
+                    }
+                }
+            }
+
+            if (!destinationAccount) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'Cuenta destino no encontrada'
+                });
+            }
+
+            // Validar que no sean el mismo número de cuenta
+            if (originAccount.accountNumber === destinationAccount.accountNumber) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'No puedes transferir a la misma cuenta'
+                });
+            }
+
+            // Determinar el tipo de transferencia
+            const isOriginPaySat = originAccount.affiliateName && originAccount.affiliateName.toUpperCase() === 'PAYSAT MONEY LTD';
+            const isDestinationPaySat = destinationAccount.affiliateName && destinationAccount.affiliateName.toUpperCase() === 'PAYSAT MONEY LTD';
+
+            let transferType;
+            let transferTypeDoc;
+
+            if (isOriginPaySat && isDestinationPaySat) {
+                // Ambas cuentas son PAYSAT MONEY LTD
+                // Verificar si es Tipo 1: Entre mis cuentas PAYSAT
+                const isSameAffiliate = originAccount.affiliateName === destinationAccount.affiliateName;
+                const isSameBeneficiary = originAccount.beneficiaryName === destinationAccount.beneficiaryName;
+                const isSameCountryId = originAccount.countryId === destinationAccount.countryId;
+                const isSameCountryName = originAccount.countryName === destinationAccount.countryName;
+                const isSameDocument = originAccount.documentNumber === destinationAccount.documentNumber;
+                const isSamePaySatUID = originAccount.paysatUID === destinationAccount.paysatUID;
+                const isSamePhone = originAccount.phone === destinationAccount.phone;
+
+                if (isSameAffiliate && isSameBeneficiary && isSameCountryId && 
+                    isSameCountryName && isSameDocument && isSamePaySatUID && isSamePhone) {
+                    // Tipo 1: Entre mis cuentas PAYSAT
+                    transferType = 'Entre mis cuentas PAYSAT';
+                    transferTypeDoc = 'Between_My_PaySat_Accounts';
+                } else {
+                    // Verificar si es Tipo 2: Entre cuentas PAYSAT de terceros
+                    const isSameAffiliateIdForType2 = originAccount.affiliateId === destinationAccount.affiliateId;
+                    const isSameCountryIdForType2 = originAccount.countryId === destinationAccount.countryId;
+                    const isSameCountryNameForType2 = originAccount.countryName === destinationAccount.countryName;
+
+                    if (isSameAffiliate && isSameAffiliateIdForType2 && 
+                        isSameCountryIdForType2 && isSameCountryNameForType2) {
+                        // Tipo 2: Entre cuentas PAYSAT de terceros
+                        transferType = 'Entre cuentas PAYSAT';
+                        transferTypeDoc = 'Between_Own_And_Other_PaySat_Account';
+                    } else {
+                        return res.status(400).json({
+                            ok: false,
+                            message: 'No se puede realizar esta transferencia entre cuentas PAYSAT con diferentes configuraciones'
+                        });
+                    }
+                }
+            } else if (isOriginPaySat && !isDestinationPaySat) {
+                // Tipo 3: PAYSAT a cuenta externa
+                transferType = 'Institucionales';
+                transferTypeDoc = 'Between_Own_PaySat_And_External_Account';
+            } else if (!isOriginPaySat && !isDestinationPaySat) {
+                // Tipo 4: Entre cuentas externas
+                transferType = 'Interinstitucionales';
+                transferTypeDoc = 'Between_External_Accounts';
+            } else if (!isOriginPaySat && isDestinationPaySat) {
+                // Cuenta externa a cuenta PAYSAT (permitido si está en ownAccounts)
+                transferType = 'Institucionales';
+                transferTypeDoc = 'Between_Own_PaySat_And_External_Account';
+            }
+
+            // Obtener el fee de la colección PaySat_Table_Transfers_Fees
+            const feeDocRef = db.collection('PaySat_Table_Transfers_Fees').doc(transferTypeDoc);
+            const feeDoc = await feeDocRef.get();
+
+            if (!feeDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontró la configuración de comisiones para este tipo de transferencia'
+                });
+            }
+
+            const feeData = feeDoc.data();
+            const transferFeePercentage = feeData.transferFeePercentage || 0;
+
+            // Calcular el valor de la comisión y el total
+            const feeValue = parseFloat(((amount * transferFeePercentage) / 100).toFixed(2));
+            const total = parseFloat((amount + feeValue).toFixed(2));
+
+            // Retornar los datos
+            return res.status(200).json({
+                ok: true,
+                data: {
+                    originUID,
+                    destinationUID,
+                    amount: parseFloat(amount),
+                    transferType,
+                    fee: transferFeePercentage,
+                    feeValue,
+                    total
+                }
+            });
+
+        } catch (error) {
+            console.error('Error al determinar la comisión de transferencia:', error);
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al determinar la comisión de transferencia',
+                error: error.message
+            });
+        }
+    }
+
+    transferBetweenAccounts = async (req, res) => {
+        try {
+            // Validar que el usuario esté autenticado
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            const uid = req.user.uid;
+            const { originUID, destinationUID, amount, reason } = req.body;
+
+            console.log('=== DATOS RECIBIDOS PARA TRANSFERENCIA ===');
+            console.log('Usuario autenticado (uid):', uid);
+            console.log('Origin UID:', originUID);
+            console.log('Destination UID:', destinationUID);
+            console.log('Amount:', amount);
+            console.log('Reason:', reason);
+            console.log('Tipo de amount:', typeof amount);
+            console.log('Body completo:', JSON.stringify(req.body, null, 2));
+            console.log('==========================================');
+
+            // Validar campos requeridos
+            if (!originUID || !destinationUID || !amount || !reason) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'Los campos originUID, destinationUID, amount y reason son requeridos'
+                });
+            }
+
+            // Validar que el monto sea mayor a 0
+            if (amount <= 0) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El monto debe ser mayor a 0'
+                });
+            }
+
+            return res.status(200).json({
+                ok: true,
+                message: 'Datos recibidos correctamente (funcionalidad en desarrollo)',
+                data: {
+                    uid,
+                    originUID,
+                    destinationUID,
+                    amount,
+                    reason
+                }
+            });
+
+        } catch (error) {
+            console.error('Error al procesar transferencia:', error);
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al procesar la transferencia',
                 error: error.message
             });
         }
