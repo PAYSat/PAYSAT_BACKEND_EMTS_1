@@ -149,19 +149,38 @@ class AppAccountAndCardPaysatTransactionsController {
                 description: mov.description || null,
                 email: mov.email || null
                 }),
-                
-                PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
-                createdAt: mov.createdAt || null,
-                updatedAt: mov.updatedAt || null,
-                source: mov.source || null
-            };
-            });
-        
-            // Ordenar transacciones por fecha (más recientes primero - descendente)
-            transacciones.sort((a, b) => {
-            let dateA, dateB;
+
+            ...(typeMovement === 'transfer_sent' && {
+            originUID: mov.originUID || null,
+            destinationUID: mov.destinationUID || null,
+            userName: mov.userName || null,
+            reason: mov.reason || null,
+            fee: mov.fee || null,
+            total: mov.total || null,
+            feePercentage: mov.feePercentage || null,
+            status: mov.status || null
+            }),
+
+            ...(typeMovement === 'transfer_received' && {
+            originUID: mov.originUID || null,
+            destinationUID: mov.destinationUID || null,
+            userName: mov.userName || null,
+            reason: mov.reason || null,
+            status: mov.status || null
+            }),
             
-            if (a.createdAt && typeof a.createdAt.toDate === 'function') {
+            PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
+            createdAt: mov.createdAt || null,
+            updatedAt: mov.updatedAt || null,
+            source: mov.source || null
+        };
+        });
+    
+        // Ordenar transacciones por fecha (más recientes primero - descendente)
+        transacciones.sort((a, b) => {
+        let dateA, dateB;
+        
+        if (a.createdAt && typeof a.createdAt.toDate === 'function') {
                 dateA = a.createdAt.toDate();
             } else if (a.createdAt) {
                 dateA = new Date(a.createdAt);
@@ -192,9 +211,9 @@ class AppAccountAndCardPaysatTransactionsController {
             const typeMovement = tx.typeMovement;
             
             // Aplicar el movimiento al balance
-            if (typeMovement === 'deposit' || typeMovement === 'recharge') {
+            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
                 balanceAcumulado += monto;
-            } else if (typeMovement === 'buy' || typeMovement === 'recharge_card') {
+            } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent') {
                 balanceAcumulado -= monto;
             } else if (typeMovement === 'fee') {
                 balanceAcumulado -= tx.totalFee || 0;
@@ -348,12 +367,12 @@ class AppAccountAndCardPaysatTransactionsController {
             const monto = parseFloat(data.amount) || 0.00;
             
             // Calcular saldo según el tipo de movimiento
-            if (typeMovement === 'deposit' || typeMovement === 'recharge') {
-                saldoTotal += monto; // Sumar depósitos y recargas
-            } else if (typeMovement === 'buy') {
-                saldoTotal -= monto; // Restar fees y compras
+            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
+                saldoTotal += monto; // Sumar depósitos, recargas y transferencias recibidas
+            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
+                saldoTotal -= monto; // Restar compras y transferencias enviadas
             } else if (typeMovement === 'fee') {
-                saldoTotal -= parseFloat(data.totalFee);        // Aquí puedes manejar otros tipos de movimientos si es necesario
+                saldoTotal -= parseFloat(data.totalFee);        // Restar comisiones
             }
 
             transacciones.push({
@@ -388,6 +407,25 @@ class AppAccountAndCardPaysatTransactionsController {
                 from: data.from || null,
                 description: data.description || null,
                 email: data.email || null
+                }),
+
+                ...(typeMovement === 'transfer_sent' && {
+                originUID: data.originUID || null,
+                destinationUID: data.destinationUID || null,
+                userName: data.userName || null,
+                reason: data.reason || null,
+                fee: data.fee || null,
+                total: data.total || null,
+                feePercentage: data.feePercentage || null,
+                status: data.status || null
+                }),
+
+                ...(typeMovement === 'transfer_received' && {
+                originUID: data.originUID || null,
+                destinationUID: data.destinationUID || null,
+                userName: data.userName || null,
+                reason: data.reason || null,
+                status: data.status || null
                 }),
                 
                 PAYSATAccountNumber: data.PAYSATAccountNumber || null,
@@ -447,9 +485,9 @@ class AppAccountAndCardPaysatTransactionsController {
             const typeMovement = tx.typeMovement;
             
             // Aplicar el movimiento al balance de la tarjeta
-            if (typeMovement === 'deposit' || typeMovement === 'recharge') {
+            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
                 balanceAcumulado += monto;
-            } else if (typeMovement === 'buy') {
+            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
                 balanceAcumulado -= monto;
             } else if (typeMovement === 'fee') {
                 balanceAcumulado -= tx.totalFee || 0;
@@ -555,10 +593,10 @@ class AppAccountAndCardPaysatTransactionsController {
             const monto = parseFloat(data.amount) || 0.00;
             
             // Calcular saldo según el tipo de movimiento
-            if (typeMovement === 'deposit' || typeMovement === 'recharge') {
-                saldoTotal += monto; // Sumar depósitos y recargas
-            } else if (typeMovement === 'buy') {
-                saldoTotal -= monto; // Restar fees y compras
+            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
+                saldoTotal += monto; // Sumar depósitos, recargas y transferencias recibidas
+            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
+                saldoTotal -= monto; // Restar compras y transferencias enviadas
             } else if (typeMovement === 'fee') {
                 saldoTotal -= parseFloat(data.totalFee);
             }
