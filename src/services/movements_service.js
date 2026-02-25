@@ -26,27 +26,28 @@ async function addMovementToUser(paysatUID, movementData, balanceChange) {
       updatedAt: admin.firestore.Timestamp.now(),
     };
     
-    // Calcular el cambio en el total (siempre es el valor absoluto)
-    const totalChange = Math.abs(balanceChange);
-    
     if (!userMovementsDoc.exists) {
       // Si no existe el documento, crearlo con el primer movimiento
+      const customerBalance = parseFloat(balanceChange.toFixed(2));
+      const customerEscrow = 0;
+      const customerTotal = customerBalance + customerEscrow; // customerTotal = customerBalance + customerEscrow
+      
       await userMovementsRef.set({
-        customerBalance: parseFloat(balanceChange.toFixed(2)),
-        customerTotal: parseFloat(totalChange.toFixed(2)),
-        customerEscrow: 0,
+        customerBalance: customerBalance,
+        customerTotal: customerTotal,
+        customerEscrow: customerEscrow,
         customerMovements: [movementWithTimestamp],
         lastUpdated: admin.firestore.Timestamp.now(),
         paysatUID: paysatUID,
       });
-      console.log('✅ Documento creado en Banco_PaySat_Money:', paysatUID);
+      console.log('✅ Documento creado en Banco_PaySat_Money:', paysatUID, '| Balance:', customerBalance, '| Total:', customerTotal);
     } else {
       // Si existe, agregar el movimiento y actualizar el balance y total
       const currentData = userMovementsDoc.data();
       const currentBalance = currentData.customerBalance || 0;
-      const currentTotal = currentData.customerTotal || 0;
+      const currentEscrow = currentData.customerEscrow || 0;
       const newBalance = currentBalance + balanceChange;
-      const newTotal = currentTotal + totalChange;
+      const newTotal = newBalance + currentEscrow; // customerTotal = customerBalance + customerEscrow
       
       await userMovementsRef.update({
         customerBalance: parseFloat(newBalance.toFixed(2)),
@@ -54,7 +55,7 @@ async function addMovementToUser(paysatUID, movementData, balanceChange) {
         customerMovements: admin.firestore.FieldValue.arrayUnion(movementWithTimestamp),
         lastUpdated: admin.firestore.Timestamp.now(),
       });
-      console.log('✅ Movimiento agregado a Banco_PaySat_Money:', paysatUID, '| Balance:', newBalance);
+      console.log('✅ Movimiento agregado a Banco_PaySat_Money:', paysatUID, '| Balance:', newBalance, '| Total:', newTotal);
     }
     
     return { success: true, movementId: movementData.id };

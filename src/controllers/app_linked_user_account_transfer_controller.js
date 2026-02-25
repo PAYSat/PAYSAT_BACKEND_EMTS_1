@@ -289,7 +289,7 @@ class LinkedUserAccountTransferController {
             // Preparar el objeto de la cuenta a guardar
             const newAccount = {
                 paysatUID: uid,
-                accountUID: `${affiliateId}-${accountNumber}`, // UID único para la cuenta combinando afiliado y número de cuenta
+                accountUID: `${affiliateId}-${accountNumber}-${uid}`, // UID único para la cuenta combinando afiliado, número de cuenta y uid de usuario
                 countryId,
                 countryName,
                 affiliateId,
@@ -506,7 +506,7 @@ class LinkedUserAccountTransferController {
             // Preparar el objeto de la cuenta a guardar
             const newAccount = {
                 paysatUID: uid,
-                accountUID: `${affiliateId}-${accountNumber}`, // UID único para la cuenta combinando afiliado y número de cuenta
+                accountUID: `${affiliateId}-${accountNumber}-${uid}`, // UID único para la cuenta combinando afiliado, número de cuenta y uid de usuario
                 countryId,
                 countryName,
                 affiliateId,

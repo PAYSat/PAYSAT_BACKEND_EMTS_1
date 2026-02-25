@@ -196,8 +196,14 @@ async function saveFeeToFirebase(feeData, paysatUID, source, paymentIntentId, re
 }
 
 // Función helper para verificar si los fees ya fueron procesados
-async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId) {
+async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId, balanceTransactionId) {
   try {
+    // Si no hay balanceTransactionId, no podemos verificar de forma específica
+    if (!balanceTransactionId) {
+      console.log('📄 No hay balanceTransactionId, asumiendo fee no procesado');
+      return false;
+    }
+    
     // Obtener el documento de movimientos del usuario
     const userMovementsDoc = await db.collection('Banco_PaySat_Money')
       .doc(paysatUID)
@@ -210,26 +216,18 @@ async function checkIfFeeProcessed(paysatUID, paymentIntentId, rechargeId) {
     
     const movements = userMovementsDoc.data().customerMovements || [];
     
-    // Buscar si ya existe un fee para este payment_intent o recharge
+    // Buscar el movimiento específico de fee basado en balanceTransactionId
+    const expectedFeeId = `fee_${balanceTransactionId}`;
     const feeExists = movements.some(mov => {
-      if (mov.typeMovement !== 'fee') return false;
-      
-      // Verificar por payment_intent_id (aunque los fees no lo tienen directo, verificar por balanceTransactionId vinculado)
-      // O verificar por recharge_id si se guarda esa relación
-      
-      // Por ahora, verificamos si el ID del movimiento corresponde al fee esperado
-      const expectedFeeId = `fee_${mov.balanceTransactionId}`;
-      
-      // También podemos verificar por timestamp cercano y monto similar
-      return mov.id && mov.id.startsWith('fee_');
+      return mov.typeMovement === 'fee' && mov.id === expectedFeeId;
     });
     
     if (feeExists) {
-      console.log('✅ Fee ya procesado para usuario:', paysatUID);
+      console.log('✅ Fee ya procesado para transacción:', expectedFeeId);
       return true;
     }
     
-    console.log('📄 Fee no procesado aún para usuario:', paysatUID);
+    console.log('📄 Fee no procesado aún para transacción:', expectedFeeId);
     return false;
   } catch (error) {
     console.error('❌ Error verificando fee procesado:', error);
@@ -439,7 +437,8 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         }
 
         // Verificar si los fees ya fueron procesados
-        const feeAlreadyProcessed = await checkIfFeeProcessed(paysatUID, charge.payment_intent, rechargeId);
+        const balanceTransactionId = feeData?.balanceTransactionId || balanceTransaction?.id || null;
+        const feeAlreadyProcessed = await checkIfFeeProcessed(paysatUID, charge.payment_intent, rechargeId, balanceTransactionId);
 
         if (feeAlreadyProcessed) {
           console.log('✅ Fees ya procesados, saltando procesamiento de movimientos');
@@ -492,7 +491,6 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
 
         console.log('📦 Procesando transacción completa...');
 
-        const balanceTransactionId = feeData?.balanceTransactionId || null;
         const result = await processCompleteTransaction(
           sessionMovementData,
           charge.payment_intent,
