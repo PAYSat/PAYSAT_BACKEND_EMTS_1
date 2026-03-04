@@ -60,15 +60,15 @@ class AppAccountAndCardPaysatTransactionsController {
         try {
             // Limpiar el paysatUID de caracteres no deseados al inicio
             if (paysatUID.startsWith(':')) {
-            paysatUID = paysatUID.substring(1);
+                paysatUID = paysatUID.substring(1);
             }
         
             // Validar que paysatUID no esté vacío después de la limpieza
             if (!paysatUID || paysatUID.trim() === '') {
-            return res.status(400).json({ 
-                ok: false, 
-                error: 'paysatUID es requerido y no puede estar vacío' 
-            });
+                return res.status(400).json({ 
+                    ok: false, 
+                    error: 'paysatUID es requerido y no puede estar vacío' 
+                });
             }
         
             // Obtener el documento de movimientos del usuario (nueva estructura)
@@ -77,13 +77,13 @@ class AppAccountAndCardPaysatTransactionsController {
             .get();
         
             if (!userMovementsDoc.exists) {
-            console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
-            return res.json({
-                ok: true,
-                saldo: 0.00,
-                data: [],
-                message: 'No se encontraron movimientos para este usuario'
-            });
+                console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
+                return res.json({
+                    ok: true,
+                    saldo: 0.00,
+                    data: [],
+                    message: 'No se encontraron movimientos para este usuario'
+                });
             }
         
             const userData = userMovementsDoc.data();
@@ -93,113 +93,113 @@ class AppAccountAndCardPaysatTransactionsController {
             console.log('📊 Movimientos encontrados:', movements.length);
         
             if (movements.length === 0) {
-            return res.json({
-                ok: true,
-                saldo: balance,
-                data: [],
-                message: 'No se encontraron movimientos para este usuario'
-            });
+                return res.json({
+                    ok: true,
+                    saldo: balance,
+                    data: [],
+                    message: 'No se encontraron movimientos para este usuario'
+                });
             }
         
             // Procesar los movimientos para la respuesta
             const transacciones = movements.map(mov => {
-            const typeMovement = mov.typeMovement;
+                const typeMovement = mov.typeMovement;
+                
+                return {
+                    id: mov.id,
+                    typeMovement: typeMovement,
+                    amount: mov.amount,
+                    amount_cents: mov.amount_cents,
+                    currency: mov.currency || 'USD',
+                    
+                    // Campos específicos según el tipo de movimiento
+                    ...(typeMovement === 'recharge' && {
+                    payment_intent_id: mov.payment_intent_id || null,
+                    recharge_id: mov.recharge_id || null,
+                    charge_id: mov.charge_id || null,
+                    status: mov.status || null,
+                    userName: mov.userName || null,
+                    userEmail: mov.userEmail || null,
+                    }),
+                    
+                    ...(typeMovement === 'fee' && {
+                    paysatFee: mov.paysatFee || null,
+                    paysatFee_cents: mov.paysatFee_cents || null,
+                    totalFee: mov.totalFee || null,
+                    net: mov.net || null,
+                    balanceTransactionId: mov.balanceTransactionId || null,
+                    stripe_fee: mov.stripe_fee || null,
+                    stripe_fee_cents: mov.stripe_fee_cents || null,
+                    }),
+                    
+                    ...(typeMovement === 'deposit' && {
+                    from: mov.from || null,
+                    description: mov.description || null,
+                    email: mov.email || null
+                    }),
             
-            return {
-                id: mov.id,
-                typeMovement: typeMovement,
-                amount: mov.amount,
-                amount_cents: mov.amount_cents,
-                currency: mov.currency || 'USD',
-                
-                // Campos específicos según el tipo de movimiento
-                ...(typeMovement === 'recharge' && {
-                payment_intent_id: mov.payment_intent_id || null,
-                recharge_id: mov.recharge_id || null,
-                charge_id: mov.charge_id || null,
-                status: mov.status || null,
-                userName: mov.userName || null,
-                userEmail: mov.userEmail || null,
-                }),
-                
-                ...(typeMovement === 'fee' && {
-                paysatFee: mov.paysatFee || null,
-                paysatFee_cents: mov.paysatFee_cents || null,
-                totalFee: mov.totalFee || null,
-                net: mov.net || null,
-                balanceTransactionId: mov.balanceTransactionId || null,
-                stripe_fee: mov.stripe_fee || null,
-                stripe_fee_cents: mov.stripe_fee_cents || null,
-                }),
-                
-                ...(typeMovement === 'deposit' && {
-                from: mov.from || null,
-                description: mov.description || null,
-                email: mov.email || null
-                }),
-        
-                ...(typeMovement === 'buy' && {
-                from: mov.from || null,
-                description: mov.description || null,
-                email: mov.email || null
-                }),
-        
-                ...(typeMovement === 'recharge_card' && {
-                from: mov.from || null,
-                description: mov.description || null,
-                email: mov.email || null
-                }),
-
-            ...(typeMovement === 'transfer_sent' && {
-            originUID: mov.originUID || null,
-            destinationUID: mov.destinationUID || null,
-            userName: mov.userName || null,
-            reason: mov.reason || null,
-            fee: mov.fee || null,
-            total: mov.total || null,
-            feePercentage: mov.feePercentage || null,
-            status: mov.status || null
-            }),
-
-            ...(typeMovement === 'transfer_received' && {
-            originUID: mov.originUID || null,
-            destinationUID: mov.destinationUID || null,
-            userName: mov.userName || null,
-            reason: mov.reason || null,
-            status: mov.status || null
-            }),
+                    ...(typeMovement === 'buy' && {
+                    from: mov.from || null,
+                    description: mov.description || null,
+                    email: mov.email || null
+                    }),
             
-            PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
-            createdAt: mov.createdAt || null,
-            updatedAt: mov.updatedAt || null,
-            source: mov.source || null
-        };
-        });
+                    ...(typeMovement === 'recharge_card' && {
+                    from: mov.from || null,
+                    description: mov.description || null,
+                    email: mov.email || null
+                    }),
+
+                    ...(typeMovement === 'transfer_sent' && {
+                        originUID: mov.originUID || null,
+                        destinationUID: mov.destinationUID || null,
+                        userName: mov.userName || null,
+                        reason: mov.reason || null,
+                        fee: mov.fee || null,
+                        total: mov.total || null,
+                        feePercentage: mov.feePercentage || null,
+                        status: mov.status || null
+                    }),
+
+                    ...(typeMovement === 'transfer_received' && {
+                        originUID: mov.originUID || null,
+                        destinationUID: mov.destinationUID || null,
+                        userName: mov.userName || null,
+                        reason: mov.reason || null,
+                        status: mov.status || null
+                    }),
+                    
+                    PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
+                    createdAt: mov.createdAt || null,
+                    updatedAt: mov.updatedAt || null,
+                    source: mov.source || null
+                };
+            });
     
-        // Ordenar transacciones por fecha (más recientes primero - descendente)
-        transacciones.sort((a, b) => {
-        let dateA, dateB;
-        
-        if (a.createdAt && typeof a.createdAt.toDate === 'function') {
-                dateA = a.createdAt.toDate();
-            } else if (a.createdAt) {
-                dateA = new Date(a.createdAt);
-            } else {
-                dateA = new Date(0);
-            }
-            
-            if (b.createdAt && typeof b.createdAt.toDate === 'function') {
-                dateB = b.createdAt.toDate();
-            } else if (b.createdAt) {
-                dateB = new Date(b.createdAt);
-            } else {
-                dateB = new Date(0);
-            }
-            
-            const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
-            const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
-            
-            return timeB - timeA;
+            // Ordenar transacciones por fecha (más recientes primero - descendente)
+            transacciones.sort((a, b) => {
+                let dateA, dateB;
+                
+                if (a.createdAt && typeof a.createdAt.toDate === 'function') {
+                    dateA = a.createdAt.toDate();
+                } else if (a.createdAt) {
+                    dateA = new Date(a.createdAt);
+                } else {
+                    dateA = new Date(0);
+                }
+                
+                if (b.createdAt && typeof b.createdAt.toDate === 'function') {
+                    dateB = b.createdAt.toDate();
+                } else if (b.createdAt) {
+                    dateB = new Date(b.createdAt);
+                } else {
+                    dateB = new Date(0);
+                }
+                
+                const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+                const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+                
+                return timeB - timeA;
             });
         
             // Calcular balanceAfter para cada transacción (en orden cronológico)
@@ -207,53 +207,56 @@ class AppAccountAndCardPaysatTransactionsController {
             const transaccionesOrdenCronologico = [...transacciones].reverse();
             
             transaccionesOrdenCronologico.forEach(tx => {
-            const monto = tx.amount;
-            const typeMovement = tx.typeMovement;
-            
-            // Aplicar el movimiento al balance
-            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
-                balanceAcumulado += monto;
-            } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent') {
-                balanceAcumulado -= monto;
-            } else if (typeMovement === 'fee') {
-                balanceAcumulado -= tx.totalFee || 0;
-            }
-            
-            tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
+                const monto = parseFloat(tx.amount) || 0;
+                const typeMovement = tx.typeMovement;
+                
+                // Aplicar el movimiento al balance
+                if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
+                    balanceAcumulado += monto;
+                } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent') {
+                    balanceAcumulado -= monto;
+                } else if (typeMovement === 'fee') {
+                    const feeAmount = parseFloat(tx.totalFee) || 0;
+                    balanceAcumulado -= feeAmount;
+                }
+                
+                // Asegurar que balanceAcumulado sea un número antes de aplicar toFixed
+                balanceAcumulado = parseFloat(balanceAcumulado) || 0;
+                tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
             });
-        
+
             console.log(`✅ Procesados ${transacciones.length} movimientos, saldo: $${balance}`);
-            
+        
             // Mostrar rango de fechas
             if (transacciones.length > 0) {
-            const fechaMasReciente = transacciones[0].createdAt;
-            const fechaMasAntigua = transacciones[transacciones.length - 1].createdAt;
-            
-            let fechaRecienteStr, fechaAntiguaStr;
-            
-            if (fechaMasReciente && typeof fechaMasReciente.toDate === 'function') {
-                fechaRecienteStr = fechaMasReciente.toDate().toLocaleString();
-            } else {
-                fechaRecienteStr = new Date(fechaMasReciente).toLocaleString();
+                const fechaMasReciente = transacciones[0].createdAt;
+                const fechaMasAntigua = transacciones[transacciones.length - 1].createdAt;
+                
+                let fechaRecienteStr, fechaAntiguaStr;
+                
+                if (fechaMasReciente && typeof fechaMasReciente.toDate === 'function') {
+                    fechaRecienteStr = fechaMasReciente.toDate().toLocaleString();
+                } else {
+                    fechaRecienteStr = new Date(fechaMasReciente).toLocaleString();
+                }
+                
+                if (fechaMasAntigua && typeof fechaMasAntigua.toDate === 'function') {
+                    fechaAntiguaStr = fechaMasAntigua.toDate().toLocaleString();
+                } else {
+                    fechaAntiguaStr = new Date(fechaMasAntigua).toLocaleString();
+                }
+                
+                console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
             }
-            
-            if (fechaMasAntigua && typeof fechaMasAntigua.toDate === 'function') {
-                fechaAntiguaStr = fechaMasAntigua.toDate().toLocaleString();
-            } else {
-                fechaAntiguaStr = new Date(fechaMasAntigua).toLocaleString();
-            }
-            
-            console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
-            }
-        
+    
             res.json({
-            ok: true,
-            saldo: balance,
-            data: transacciones,
-            summary: {
-                total_transactions: transacciones.length,
-                currency: 'USD'
-            }
+                ok: true,
+                saldo: balance,
+                data: transacciones,
+                summary: {
+                    total_transactions: transacciones.length,
+                    currency: 'USD'
+                }
             });
         
         } catch (error) {

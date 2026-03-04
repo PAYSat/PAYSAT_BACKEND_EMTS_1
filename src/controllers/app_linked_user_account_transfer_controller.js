@@ -1377,6 +1377,43 @@ class LinkedUserAccountTransferController {
             // Aquí comienza la ejecución de la transferencia
             console.log('=== EJECUTANDO TRANSFERENCIA ===');
 
+            // ===============================================
+            // CASO ESPECIAL: Transferencias Interinstitucionales (Cuenta externa a Cuenta externa)
+            // ===============================================
+            // Para este tipo de transferencia, se requiere un flujo de dos pasos:
+            // 1. Cuenta externa origen → Cuenta PAYSAT principal del usuario
+            // 2. Cuenta PAYSAT principal → Cuenta externa destino (con fee)
+            
+            let isInterinstitutional = false;
+            let userMainAccountDoc = null;
+            let userMainAccountData = null;
+            
+            if (!isOriginPaySat && !isDestinationPaySat) {
+                isInterinstitutional = true;
+                console.log('🔄 TRANSFERENCIA INTERINSTITUCIONAL DETECTADA - Iniciando flujo de dos pasos');
+                
+                // Buscar la cuenta principal PAYSAT del usuario (mainAccount=true)
+                const mainAccountQuery = db.collection('Banco_PaySat_Money')
+                    .where('customerAccountUID', '==', uid)
+                    .where('mainAccount', '==', true)
+                    .limit(1);
+                
+                const mainAccountSnapshot = await mainAccountQuery.get();
+                
+                if (mainAccountSnapshot.empty) {
+                    return res.status(404).json({
+                        ok: false,
+                        message: 'No se encontró la cuenta principal PAYSAT del usuario. Se requiere una cuenta principal para transferencias interinstitucionales.'
+                    });
+                }
+                
+                userMainAccountDoc = mainAccountSnapshot.docs[0];
+                userMainAccountData = userMainAccountDoc.data();
+                
+                console.log('✓ Cuenta PAYSAT principal del usuario encontrada:', userMainAccountData.customerAccountNumber);
+                console.log('Balance actual cuenta principal:', userMainAccountData.customerBalance);
+            }
+
             // Obtener la colección origen basada en el affiliateId
             let originCollectionName;
             if (isOriginPaySat) {
@@ -1451,11 +1488,15 @@ class LinkedUserAccountTransferController {
             console.log('Cuenta bancaria de origen encontrada:', originBankAccountDoc.id);
             console.log('Balance actual origen:', originBankAccountData.customerBalance);
 
-            // Validar que haya suficiente balance (monto + fee)
-            if (originBankAccountData.customerBalance < total) {
+            // Validar que haya suficiente balance 
+            // Para interinstitucionales: solo validar el amount (el fee se cobra al transferir de PaySat principal a destino)
+            // Para otros tipos: validar amount + fee (como antes)
+            const requiredOriginBalance = isInterinstitutional ? amount : total;
+            
+            if (originBankAccountData.customerBalance < requiredOriginBalance) {
                 return res.status(400).json({
                     ok: false,
-                    message: `Balance insuficiente. Balance actual: $${originBankAccountData.customerBalance.toFixed(2)}, Se requiere: $${total.toFixed(2)}`
+                    message: `Balance insuficiente. Balance actual: $${originBankAccountData.customerBalance.toFixed(2)}, Se requiere: $${requiredOriginBalance.toFixed(2)}`
                 });
             }
 
@@ -1493,82 +1534,246 @@ class LinkedUserAccountTransferController {
             const updatedAt = now.toISOString();
             const registeredAt = now.toISOString();
 
-            // Calcular nuevos balances
-            const newOriginBalance = parseFloat((originBankAccountData.customerBalance - total).toFixed(2));
-            const newOriginTotal = parseFloat((newOriginBalance + (originBankAccountData.customerEscrow || 0)).toFixed(2));
+            // ===============================================
+            // Calcular nuevos balances y preparar movimientos
+            // ===============================================
             
-            const newDestinationBalance = parseFloat((destinationBankAccountData.customerBalance + amount).toFixed(2));
-            const newDestinationTotal = parseFloat((newDestinationBalance + (destinationBankAccountData.customerEscrow || 0)).toFixed(2));
-
-            console.log('Nuevo balance origen:', newOriginBalance);
-            console.log('Nuevo balance destino:', newDestinationBalance);
-
-            // Preparar movimiento de envío (origen)
-            const originMovement = {
-                PAYSATAccountNumber: originAccountData.accountNumber,
-                amount: amount,
-                amount_cents: Math.round(amount * 100),
-                createdAt,
-                currency: "usd",
-                id: `transfer_${transactionUID}`,
-                description: `send_transfer_${transactionUID}`,
-                paysatUID: uid,
-                updatedAt,
-                userName: originAccountData.beneficiaryName,
-                originUID,
-                destinationUID,
-                typeMovement: "transfer_sent",
-                status: "success",
-                feePercentage: transferFeePercentage,
-                fee: feeValue,
-                total: total,
-                reason: reason
-            };
-
-            // Preparar movimiento de recepción (destino)
-            const destinationMovement = {
-                PAYSATAccountNumber: destinationAccountData.accountNumber,
-                amount: amount,
-                amount_cents: Math.round(amount * 100),
-                createdAt,
-                currency: "usd",
-                id: `transfer_${transactionUID}`,
-                description: `received_transfer_${transactionUID}`,
-                paysatUID: destinationUserUID,
-                updatedAt,
-                userName: destinationAccountData.beneficiaryName,
-                originUID,
-                destinationUID,
-                typeMovement: "transfer_received",
-                status: "success",
-                reason: reason
-            };
-
-            // Array de movimientos a registrar
-            const originMovements = [originMovement];
-            const destinationMovements = [destinationMovement];
-
-            // Si hay fee, agregar movimiento de fee en origen
-            let feeMovement = null;
-            if (feeValue > 0) {
-                feeMovement = {
+            // Variables para transferencias normales
+            let newOriginBalance, newOriginTotal, newDestinationBalance, newDestinationTotal;
+            let originMovements = [];
+            let destinationMovements = [];
+            
+            // Variables específicas para transferencias interinstitucionales
+            let newMainPaySatBalance, newMainPaySatTotal;
+            let mainPaySatMovements = [];
+            
+            if (isInterinstitutional) {
+                // ============================================
+                // FLUJO INTERINSTITUCIONAL (DOS PASOS)
+                // ============================================
+                console.log('💱 Preparando transferencia interinstitucional en dos pasos...');
+                
+                // PASO 1: Origen externo → Cuenta PAYSAT principal del usuario
+                // El origen envía el monto completo (sin fee en este paso)
+                newOriginBalance = parseFloat((originBankAccountData.customerBalance - amount).toFixed(2));
+                newOriginTotal = parseFloat((newOriginBalance + (originBankAccountData.customerEscrow || 0)).toFixed(2));
+                
+                // La cuenta principal PAYSAT recibe el monto
+                newMainPaySatBalance = parseFloat((userMainAccountData.customerBalance + amount).toFixed(2));
+                
+                // PASO 2: Cuenta PAYSAT principal → Destino externo (con fee)
+                // La cuenta principal PAYSAT envía amount + fee
+                newMainPaySatBalance = parseFloat((newMainPaySatBalance - total).toFixed(2));
+                newMainPaySatTotal = parseFloat((newMainPaySatBalance + (userMainAccountData.customerEscrow || 0)).toFixed(2));
+                
+                // El destino recibe solo el amount (sin fee)
+                newDestinationBalance = parseFloat((destinationBankAccountData.customerBalance + amount).toFixed(2));
+                newDestinationTotal = parseFloat((newDestinationBalance + (destinationBankAccountData.customerEscrow || 0)).toFixed(2));
+                
+                // Validar que la cuenta principal tenga suficiente balance para el segundo paso
+                const mainAccountRequiredBalance = userMainAccountData.customerBalance + amount;
+                if (mainAccountRequiredBalance < total) {
+                    return res.status(400).json({
+                        ok: false,
+                        message: `La cuenta principal PAYSAT no tendrá suficiente balance para completar la transferencia. Se requiere: $${total.toFixed(2)}, Disponible después del primer paso: $${mainAccountRequiredBalance.toFixed(2)}`
+                    });
+                }
+                
+                console.log('✓ Balances calculados para flujo interinstitucional');
+                console.log('  - Origen externo (nuevo balance):', newOriginBalance);
+                console.log('  - PaySat principal (nuevo balance):', newMainPaySatBalance);
+                console.log('  - Destino externo (nuevo balance):', newDestinationBalance);
+                
+                // Movimientos para cuenta origen (envío a PaySat principal)
+                const originMovement = {
                     PAYSATAccountNumber: originAccountData.accountNumber,
-                    amount: feeValue,
-                    amount_cents: Math.round(feeValue * 100),
-                    balanceTransactionId: `txn_${transactionUID}`,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
                     createdAt,
                     currency: "usd",
-                    id: `fee_transfer_${transactionUID}`,
-                    paysatFee: feeValue,
+                    id: `transfer_${transactionUID}_step1`,
+                    description: `send_transfer_to_paysat_${transactionUID}`,
                     paysatUID: uid,
-                    source: "paysat_transfer",
-                    feePercentage: transferFeePercentage,
-                    totalFee: feeValue,
-                    totalFee_cents: Math.round(feeValue * 100),
-                    typeMovement: "fee",
-                    updatedAt
+                    updatedAt,
+                    userName: originAccountData.beneficiaryName,
+                    originUID,
+                    destinationUID: userMainAccountData.customerAccountUID,
+                    typeMovement: "transfer_sent",
+                    status: "success",
+                    transferStep: "step1_to_paysat",
+                    reason: reason
                 };
-                originMovements.push(feeMovement);
+                originMovements.push(originMovement);
+                
+                // Movimientos para cuenta PAYSAT principal (recepción desde origen)
+                const mainReceiveMovement = {
+                    PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
+                    createdAt,
+                    currency: "usd",
+                    id: `transfer_${transactionUID}_step1_receive`,
+                    description: `received_transfer_from_external_${transactionUID}`,
+                    paysatUID: uid,
+                    updatedAt,
+                    userName: userMainAccountData.customerName,
+                    originUID,
+                    destinationUID: userMainAccountData.customerAccountUID,
+                    typeMovement: "transfer_received",
+                    status: "success",
+                    transferStep: "step1_from_external",
+                    reason: reason
+                };
+                mainPaySatMovements.push(mainReceiveMovement);
+                
+                // Movimientos para cuenta PAYSAT principal (envío a destino con fee)
+                const mainSendMovement = {
+                    PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
+                    createdAt,
+                    currency: "usd",
+                    id: `transfer_${transactionUID}_step2`,
+                    description: `send_transfer_to_destination_${transactionUID}`,
+                    paysatUID: uid,
+                    updatedAt,
+                    userName: userMainAccountData.customerName,
+                    originUID: userMainAccountData.customerAccountUID,
+                    destinationUID,
+                    typeMovement: "transfer_sent",
+                    status: "success",
+                    feePercentage: transferFeePercentage,
+                    fee: feeValue,
+                    total: total,
+                    transferStep: "step2_to_external",
+                    reason: reason
+                };
+                mainPaySatMovements.push(mainSendMovement);
+                
+                // Si hay fee, agregar movimiento de fee en cuenta principal
+                if (feeValue > 0) {
+                    const feeMovement = {
+                        PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                        amount: feeValue,
+                        amount_cents: Math.round(feeValue * 100),
+                        balanceTransactionId: `txn_${transactionUID}`,
+                        createdAt,
+                        currency: "usd",
+                        id: `fee_transfer_${transactionUID}`,
+                        paysatFee: feeValue,
+                        paysatUID: uid,
+                        source: "paysat_transfer_interinstitutional",
+                        feePercentage: transferFeePercentage,
+                        totalFee: feeValue,
+                        totalFee_cents: Math.round(feeValue * 100),
+                        typeMovement: "fee",
+                        updatedAt
+                    };
+                    mainPaySatMovements.push(feeMovement);
+                }
+                
+                // Movimientos para cuenta destino (recepción desde PaySat principal)
+                const destinationMovement = {
+                    PAYSATAccountNumber: destinationAccountData.accountNumber,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
+                    createdAt,
+                    currency: "usd",
+                    id: `transfer_${transactionUID}_step2_receive`,
+                    description: `received_transfer_from_paysat_${transactionUID}`,
+                    paysatUID: destinationUserUID,
+                    updatedAt,
+                    userName: destinationAccountData.beneficiaryName,
+                    originUID: userMainAccountData.customerAccountUID,
+                    destinationUID,
+                    typeMovement: "transfer_received",
+                    status: "success",
+                    transferStep: "step2_from_paysat",
+                    reason: reason
+                };
+                destinationMovements.push(destinationMovement);
+                
+            } else {
+                // ============================================
+                // FLUJO NORMAL (TRANSFERENCIA DIRECTA)
+                // ============================================
+                console.log('💸 Preparando transferencia directa...');
+                
+                newOriginBalance = parseFloat((originBankAccountData.customerBalance - total).toFixed(2));
+                newOriginTotal = parseFloat((newOriginBalance + (originBankAccountData.customerEscrow || 0)).toFixed(2));
+                
+                newDestinationBalance = parseFloat((destinationBankAccountData.customerBalance + amount).toFixed(2));
+                newDestinationTotal = parseFloat((newDestinationBalance + (destinationBankAccountData.customerEscrow || 0)).toFixed(2));
+
+                console.log('Nuevo balance origen:', newOriginBalance);
+                console.log('Nuevo balance destino:', newDestinationBalance);
+
+                // Preparar movimiento de envío (origen)
+                const originMovement = {
+                    PAYSATAccountNumber: originAccountData.accountNumber,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
+                    createdAt,
+                    currency: "usd",
+                    id: `transfer_${transactionUID}`,
+                    description: `send_transfer_${transactionUID}`,
+                    paysatUID: uid,
+                    updatedAt,
+                    userName: originAccountData.beneficiaryName,
+                    originUID,
+                    destinationUID,
+                    typeMovement: "transfer_sent",
+                    status: "success",
+                    feePercentage: transferFeePercentage,
+                    fee: feeValue,
+                    total: total,
+                    reason: reason
+                };
+
+                // Preparar movimiento de recepción (destino)
+                const destinationMovement = {
+                    PAYSATAccountNumber: destinationAccountData.accountNumber,
+                    amount: amount,
+                    amount_cents: Math.round(amount * 100),
+                    createdAt,
+                    currency: "usd",
+                    id: `transfer_${transactionUID}`,
+                    description: `received_transfer_${transactionUID}`,
+                    paysatUID: destinationUserUID,
+                    updatedAt,
+                    userName: destinationAccountData.beneficiaryName,
+                    originUID,
+                    destinationUID,
+                    typeMovement: "transfer_received",
+                    status: "success",
+                    reason: reason
+                };
+
+                // Array de movimientos a registrar
+                originMovements = [originMovement];
+                destinationMovements = [destinationMovement];
+
+                // Si hay fee, agregar movimiento de fee en origen
+                if (feeValue > 0) {
+                    const feeMovement = {
+                        PAYSATAccountNumber: originAccountData.accountNumber,
+                        amount: feeValue,
+                        amount_cents: Math.round(feeValue * 100),
+                        balanceTransactionId: `txn_${transactionUID}`,
+                        createdAt,
+                        currency: "usd",
+                        id: `fee_transfer_${transactionUID}`,
+                        paysatFee: feeValue,
+                        paysatUID: uid,
+                        source: "paysat_transfer",
+                        feePercentage: transferFeePercentage,
+                        totalFee: feeValue,
+                        totalFee_cents: Math.round(feeValue * 100),
+                        typeMovement: "fee",
+                        updatedAt
+                    };
+                    originMovements.push(feeMovement);
+                }
             }
 
             console.log('Movimientos preparados');
@@ -1606,8 +1811,25 @@ class LinkedUserAccountTransferController {
                             throw new Error('La cuenta destino ya no existe');
                         }
                         console.log('✓ Cuenta destino verificada');
+                        
+                        // 1.2.1. Si es transferencia interinstitucional, verificar cuenta PaySat principal
+                        let mainPaySatCheckDoc = null;
+                        if (isInterinstitutional) {
+                            mainPaySatCheckDoc = await transaction.get(userMainAccountDoc.ref);
+                            if (!mainPaySatCheckDoc.exists) {
+                                throw new Error('La cuenta PAYSAT principal ya no existe');
+                            }
+                            
+                            // Validar balance de cuenta principal para el segundo paso
+                            const currentMainBalance = mainPaySatCheckDoc.data().customerBalance;
+                            const requiredMainBalance = currentMainBalance + amount; // después de recibir de origen
+                            if (requiredMainBalance < total) {
+                                throw new Error(`La cuenta principal PAYSAT no tendrá suficiente balance. Requerido: $${total.toFixed(2)}, Disponible: $${requiredMainBalance.toFixed(2)}`);
+                            }
+                            console.log('✓ Cuenta PAYSAT principal verificada');
+                        }
 
-                        // 1.3. Si hay fee, verificar cuenta principal de PaySat
+                        // 1.3. Si hay fee, verificar cuenta principal de PaySat para recibir comisiones
                         let mainAccountDoc = null;
                         let mainAccountData = null;
                         let newMainBalance = 0;
@@ -1676,8 +1898,18 @@ class LinkedUserAccountTransferController {
                             customerMovements: admin.firestore.FieldValue.arrayUnion(...destinationMovements)
                         });
                         console.log('✓ Actualización de cuenta destino programada');
+                        
+                        // 2.2.1. Si es transferencia interinstitucional, actualizar cuenta PaySat principal
+                        if (isInterinstitutional && userMainAccountDoc) {
+                            transaction.update(userMainAccountDoc.ref, {
+                                customerBalance: newMainPaySatBalance,
+                                customerTotal: newMainPaySatTotal,
+                                customerMovements: admin.firestore.FieldValue.arrayUnion(...mainPaySatMovements)
+                            });
+                            console.log('✓ Actualización de cuenta PAYSAT principal del usuario programada');
+                        }
 
-                        // 2.3. Si hay fee, actualizar cuenta principal de PaySat
+                        // 2.3. Si hay fee, actualizar cuenta principal de PaySat para recibir comisiones
                         if (feeValue > 0 && mainAccountDoc) {
                             transaction.update(mainAccountDoc.ref, {
                                 customerBalance: newMainBalance,
@@ -1690,71 +1922,207 @@ class LinkedUserAccountTransferController {
                         // 2.4. Crear registro en PaySat_Transfers_History
                         const transferHistoryRef = db.collection('PaySat_Transfers_History').doc(transactionUID);
 
-                        const originHistoryData = {
-                            PAYSATAccountNumber: originAccountData.accountNumber,
-                            amount: amount,
-                            amount_cents: Math.round(amount * 100),
-                            createdAt,
-                            currency: "usd",
-                            id: `transfer_${transactionUID}`,
-                            description: `send_transfer_${transactionUID}`,
-                            paysatUID: uid,
-                            registeredAt,
-                            userName: originAccountData.beneficiaryName,
-                            originUID,
-                            destinationUID,
-                            typeMovement: "transfer_sent",
-                            status: "success",
-                            fee: feeValue,
-                            total: total,
-                            reason: reason
-                        };
-
-                        const destinationHistoryData = {
-                            PAYSATAccountNumber: destinationAccountData.accountNumber,
-                            amount: amount,
-                            amount_cents: Math.round(amount * 100),
-                            createdAt,
-                            currency: "usd",
-                            id: `transfer_${transactionUID}`,
-                            description: `received_transfer_${transactionUID}`,
-                            paysatUID: destinationUserUID,
-                            registeredAt,
-                            userName: destinationAccountData.beneficiaryName,
-                            originUID,
-                            destinationUID,
-                            typeMovement: "transfer_received",
-                            status: "success",
-                            reason: reason
-                        };
-
-                        const transferHistoryData = {
-                            origin: originHistoryData,
-                            destination: destinationHistoryData,
-                            registeredAt,
-                            transferType,
-                            transferTypeDoc,
-                            status: "success"
-                        };
-
-                        // Si hay fee, agregar al historial
-                        if (feeValue > 0) {
-                            transferHistoryData.originTransferFee = {
+                        let transferHistoryData;
+                        
+                        if (isInterinstitutional) {
+                            // ============================================
+                            // HISTORIAL PARA TRANSFERENCIA INTERINSTITUCIONAL (DOS PASOS)
+                            // ============================================
+                            
+                            // Paso 1: Origen externo → PaySat principal
+                            const step1OriginData = {
                                 PAYSATAccountNumber: originAccountData.accountNumber,
-                                amount: feeValue,
-                                amount_cents: Math.round(feeValue * 100),
-                                balanceTransactionId: `txn_${transactionUID}`,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
                                 createdAt,
                                 currency: "usd",
-                                id: `fee_transfer_${transactionUID}`,
-                                paysatFee: feeValue,
+                                id: `transfer_${transactionUID}_step1`,
+                                description: `send_transfer_to_paysat_${transactionUID}`,
                                 paysatUID: uid,
-                                source: "paysat_transfer",
-                                feePercentage: transferFeePercentage,
-                                totalFee: feeValue,
-                                totalFee_cents: Math.round(feeValue * 100),
-                                typeMovement: "fee"
+                                registeredAt,
+                                userName: originAccountData.beneficiaryName,
+                                originUID,
+                                destinationUID: userMainAccountData.customerAccountUID,
+                                typeMovement: "transfer_sent",
+                                status: "success",
+                                transferStep: "step1_to_paysat",
+                                reason: reason
                             };
+                            
+                            const step1DestinationData = {
+                                PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
+                                createdAt,
+                                currency: "usd",
+                                id: `transfer_${transactionUID}_step1_receive`,
+                                description: `received_transfer_from_external_${transactionUID}`,
+                                paysatUID: uid,
+                                registeredAt,
+                                userName: userMainAccountData.customerName,
+                                originUID,
+                                destinationUID: userMainAccountData.customerAccountUID,
+                                typeMovement: "transfer_received",
+                                status: "success",
+                                transferStep: "step1_from_external",
+                                reason: reason
+                            };
+                            
+                            // Paso 2: PaySat principal → Destino externo
+                            const step2OriginData = {
+                                PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
+                                createdAt,
+                                currency: "usd",
+                                id: `transfer_${transactionUID}_step2`,
+                                description: `send_transfer_to_destination_${transactionUID}`,
+                                paysatUID: uid,
+                                registeredAt,
+                                userName: userMainAccountData.customerName,
+                                originUID: userMainAccountData.customerAccountUID,
+                                destinationUID,
+                                typeMovement: "transfer_sent",
+                                status: "success",
+                                fee: feeValue,
+                                total: total,
+                                transferStep: "step2_to_external",
+                                reason: reason
+                            };
+                            
+                            const step2DestinationData = {
+                                PAYSATAccountNumber: destinationAccountData.accountNumber,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
+                                createdAt,
+                                currency: "usd",
+                                id: `transfer_${transactionUID}_step2_receive`,
+                                description: `received_transfer_from_paysat_${transactionUID}`,
+                                paysatUID: destinationUserUID,
+                                registeredAt,
+                                userName: destinationAccountData.beneficiaryName,
+                                originUID: userMainAccountData.customerAccountUID,
+                                destinationUID,
+                                typeMovement: "transfer_received",
+                                status: "success",
+                                transferStep: "step2_from_paysat",
+                                reason: reason
+                            };
+                            
+                            transferHistoryData = {
+                                transferType: "Interinstitucional_Two_Step",
+                                transferTypeDoc,
+                                status: "success",
+                                registeredAt,
+                                step1: {
+                                    origin: step1OriginData,
+                                    destination: step1DestinationData
+                                },
+                                step2: {
+                                    origin: step2OriginData,
+                                    destination: step2DestinationData
+                                },
+                                summary: {
+                                    finalOriginUID: originUID,
+                                    intermediateAccountUID: userMainAccountData.customerAccountUID,
+                                    finalDestinationUID: destinationUID,
+                                    amount: amount,
+                                    fee: feeValue,
+                                    total: total
+                                }
+                            };
+                            
+                            // Si hay fee, agregar al historial
+                            if (feeValue > 0) {
+                                transferHistoryData.step2TransferFee = {
+                                    PAYSATAccountNumber: userMainAccountData.customerAccountNumber,
+                                    amount: feeValue,
+                                    amount_cents: Math.round(feeValue * 100),
+                                    balanceTransactionId: `txn_${transactionUID}`,
+                                    createdAt,
+                                    currency: "usd",
+                                    id: `fee_transfer_${transactionUID}`,
+                                    paysatFee: feeValue,
+                                    paysatUID: uid,
+                                    source: "paysat_transfer_interinstitutional",
+                                    feePercentage: transferFeePercentage,
+                                    totalFee: feeValue,
+                                    totalFee_cents: Math.round(feeValue * 100),
+                                    typeMovement: "fee"
+                                };
+                            }
+                            
+                        } else {
+                            // ============================================
+                            // HISTORIAL PARA TRANSFERENCIA NORMAL (DIRECTA)
+                            // ============================================
+                            
+                            const originHistoryData = {
+                                PAYSATAccountNumber: originAccountData.accountNumber,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
+                                createdAt,
+                                currency: "usd",
+                                id: `transfer_${transactionUID}`,
+                                description: `send_transfer_${transactionUID}`,
+                                paysatUID: uid,
+                                registeredAt,
+                                userName: originAccountData.beneficiaryName,
+                                originUID,
+                                destinationUID,
+                                typeMovement: "transfer_sent",
+                                status: "success",
+                                fee: feeValue,
+                                total: total,
+                                reason: reason
+                            };
+
+                            const destinationHistoryData = {
+                                PAYSATAccountNumber: destinationAccountData.accountNumber,
+                                amount: amount,
+                                amount_cents: Math.round(amount * 100),
+                                createdAt,
+                                currency: "usd",
+                                id: `transfer_${transactionUID}`,
+                                description: `received_transfer_${transactionUID}`,
+                                paysatUID: destinationUserUID,
+                                registeredAt,
+                                userName: destinationAccountData.beneficiaryName,
+                                originUID,
+                                destinationUID,
+                                typeMovement: "transfer_received",
+                                status: "success",
+                                reason: reason
+                            };
+
+                            transferHistoryData = {
+                                origin: originHistoryData,
+                                destination: destinationHistoryData,
+                                registeredAt,
+                                transferType,
+                                transferTypeDoc,
+                                status: "success"
+                            };
+
+                            // Si hay fee, agregar al historial
+                            if (feeValue > 0) {
+                                transferHistoryData.originTransferFee = {
+                                    PAYSATAccountNumber: originAccountData.accountNumber,
+                                    amount: feeValue,
+                                    amount_cents: Math.round(feeValue * 100),
+                                    balanceTransactionId: `txn_${transactionUID}`,
+                                    createdAt,
+                                    currency: "usd",
+                                    id: `fee_transfer_${transactionUID}`,
+                                    paysatFee: feeValue,
+                                    paysatUID: uid,
+                                    source: "paysat_transfer",
+                                    feePercentage: transferFeePercentage,
+                                    totalFee: feeValue,
+                                    totalFee_cents: Math.round(feeValue * 100),
+                                    typeMovement: "fee"
+                                };
+                            }
                         }
 
                         transaction.set(transferHistoryRef, transferHistoryData);
@@ -1814,7 +2182,7 @@ class LinkedUserAccountTransferController {
             }
 
             // Retornar respuesta exitosa
-            return res.status(200).json({
+            const responsePayload = {
                 ok: true,
                 message: 'Transferencia realizada exitosamente',
                 data: {
@@ -1830,7 +2198,20 @@ class LinkedUserAccountTransferController {
                     destinationBalance: newDestinationBalance,
                     timestamp: registeredAt
                 }
-            });
+            };
+            
+            // Si es transferencia interinstitucional, agregar información adicional
+            if (isInterinstitutional) {
+                responsePayload.data.isInterinstitutional = true;
+                responsePayload.data.intermediateAccount = {
+                    accountUID: userMainAccountData.customerAccountUID,
+                    accountNumber: userMainAccountData.customerAccountNumber,
+                    finalBalance: newMainPaySatBalance
+                };
+                responsePayload.message = 'Transferencia interinstitucional realizada exitosamente (flujo de dos pasos: origen → PaySat principal → destino)';
+            }
+            
+            return res.status(200).json(responsePayload);
 
         } catch (error) {
             console.error('❌ Error crítico al procesar transferencia:', error);
