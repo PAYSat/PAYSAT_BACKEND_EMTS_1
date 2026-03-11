@@ -40,6 +40,8 @@ router.post('/send/linked/accounts', linkedUserAccountTransferController.transfe
 router.get('/user/destination/phone-numbers/list/:id', linkedUserPhoneNumbersTransferController.listDestinationTransfersPhoneNumbers);
 router.post('/user/register/destination/phone-number', linkedUserPhoneNumbersTransferController.saveDestinationPhoneNumbers);
 router.delete('/user/delete/destination/phone-number/:phoneNumberFull', linkedUserPhoneNumbersTransferController.deleteDestinationPhoneNumber);
+router.get('/user/destination/phone-number/fee', linkedUserPhoneNumbersTransferController.getPhoneNumberTransferFee);
+router.post('/user/send/transfer/to/phone-number', linkedUserPhoneNumbersTransferController.sendTransferToPhoneNumber);
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------//

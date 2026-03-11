@@ -227,6 +227,92 @@ class LinkedUserPhoneNumbersTransferController {
             });
         }
     }
+
+    getPhoneNumberTransferFee = async (req, res) => {
+        try {
+            // Validar que el usuario esté autenticado
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            // Obtener el amount del request (puede venir en query o body)
+            const amount = parseFloat(req.query.amount || req.body.amount);
+
+            // Validar que el amount exista y sea un número válido
+            if (isNaN(amount) || amount <= 0) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El monto (amount) es requerido y debe ser mayor a 0'
+                });
+            }
+
+            // Validar que el amount no supere los 1000.00
+            if (amount > 1000.00) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'El monto no puede superar los 1000.00'
+                });
+            }
+
+            // Determinar el documento a consultar según el monto
+            let docName;
+            if (amount <= 100) {
+                docName = 'Equal_Or_Less_Than_100';
+            } else if (amount <= 500) {
+                docName = 'Equal_Or_Less_Than_500';
+            } else if (amount <= 1000) {
+                docName = 'Equal_Or_Less_Than_1000';
+            }
+
+            // Consultar el documento en la colección PaySat_Table_Mobile_Payment_Fees
+            const feeDocRef = db.collection('PaySat_Table_Mobile_Payment_Fees').doc(docName);
+            const feeDoc = await feeDocRef.get();
+
+            // Verificar si el documento existe
+            if (!feeDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontró la configuración de fee para el monto especificado'
+                });
+            }
+
+            const feeData = feeDoc.data();
+
+            // Validar que el campo mobilePaymentFeeValue exista
+            if (feeData.mobilePaymentFeeValue === undefined || feeData.mobilePaymentFeeValue === null) {
+                return res.status(500).json({
+                    ok: false,
+                    message: 'El campo mobilePaymentFeeValue no está configurado en el documento'
+                });
+            }
+
+            // Retornar el fee
+            return res.status(200).json({
+                ok: true,
+                data: {
+                    amount: amount,
+                    fee: feeData.mobilePaymentFeeValue,
+                    feeRange: docName
+                },
+                message: 'Fee obtenido exitosamente'
+            });
+
+        } catch (error) {
+            console.error('Error al obtener el fee de transferencia:', error);
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al obtener el fee de transferencia',
+                error: error.message
+            });
+        }
+    }
+
+    sendTransferToPhoneNumber = async (req, res) => {
+        
+    }
 }
 
 export default LinkedUserPhoneNumbersTransferController;
