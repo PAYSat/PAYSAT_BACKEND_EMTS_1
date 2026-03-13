@@ -2,6 +2,7 @@ import { admin, db } from '../config/firebase.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendTransferNotifications } from '../services/sms_service.js';
 import EmailService from '../services/send_email_service.js';
+import { recordTransferEntry, recordFeeEntry } from '../services/ledger_service.js';
 
 class AppTransfersController {
 
@@ -290,6 +291,77 @@ class AppTransfersController {
 
             // Ejecutar la transacción
             await batch.commit();
+
+            // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+            try {
+                // 1. Registrar la transferencia principal (origen -> destino)
+                await recordTransferEntry({
+                    from_account: originDoc.id,
+                    to_account: destinationDoc.id,
+                    amount: parseFloat(amountOrigin),
+                    currency: 'USD',
+                    balance_after_from: newSaldoOrigin,
+                    balance_after_to: newSaldoDestination,
+                    description: `Transferencia ${collectionNameOrigin} -> ${collectionNameDestination}`,
+                    meta: {
+                        movement_id: movementId,
+                        origin_collection: collectionNameOrigin,
+                        origin_account: ctaOrigin || '',
+                        origin_phone: phoneOrigin || '',
+                        origin_dni: dniOrigin || '',
+                        origin_name: nameOrigin || '',
+                        destination_collection: collectionNameDestination,
+                        destination_account: ctaDestination || '',
+                        destination_phone: phoneDestination || '',
+                        destination_dni: dniDestination || '',
+                        destination_name: nameDestination || '',
+                        destination_affiliate: affiliateNameDestination || '',
+                        reason: reason || '',
+                        transaction_type: 'inter_institution_transfer'
+                    }
+                });
+
+                // 2. Registrar el fee de transferencia (0.41 USD del origen al sistema)
+                const paysatMainUID = process.env.PAYSAT_MAIN_ACCOUNT_UID || 'PAYSAT_SYSTEM';
+                await recordFeeEntry({
+                    user_account: originDoc.id,
+                    system_account: paysatMainUID,
+                    fee_amount: 0.41,
+                    currency: 'USD',
+                    balance_after: newSaldoOrigin,
+                    description: `Fee de Transferencia - ${movementId}`,
+                    meta: {
+                        movement_id: movementId,
+                        origin_collection: collectionNameOrigin,
+                        destination_collection: collectionNameDestination,
+                        fee_type: 'transfer_fee',
+                        original_amount: parseFloat(amountOrigin)
+                    }
+                });
+
+                // 3. Registrar el fee de PaySat (0.03 USD a la cuenta PaySat de la institución destino)
+                if (paysatAccountNumber) {
+                    await recordFeeEntry({
+                        user_account: 'PAYSAT_SYSTEM',
+                        system_account: `PAYSAT_${collectionNameDestination}`,
+                        fee_amount: 0.03,
+                        currency: 'USD',
+                        balance_after: null,
+                        description: `PaySat Institution Fee - ${collectionNameDestination}`,
+                        meta: {
+                            movement_id: movementId,
+                            institution_account: paysatAccountNumber,
+                            destination_collection: collectionNameDestination,
+                            fee_type: 'institution_fee'
+                        }
+                    });
+                }
+
+                console.log('✅ Transferencia registrada en PaySat_Ledger:', movementId);
+            } catch (ledgerError) {
+                console.error('⚠️ Error registrando transferencia en PaySat_Ledger:', ledgerError);
+                // No lanzamos el error para no afectar la transacción principal
+            }
 
             // Enviar notificaciones SMS
             let smsNotifications = [];

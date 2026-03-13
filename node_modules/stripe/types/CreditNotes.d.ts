@@ -5,7 +5,7 @@ declare module 'stripe' {
     /**
      * Issue a credit note to adjust an invoice's amount after the invoice is finalized.
      *
-     * Related guide: [Credit notes](https://stripe.com/docs/billing/invoices/credit-notes)
+     * Related guide: [Credit notes](https://docs.stripe.com/billing/invoices/credit-notes)
      */
     interface CreditNote {
       /**
@@ -42,6 +42,11 @@ declare module 'stripe' {
        * ID of the customer.
        */
       customer: string | Stripe.Customer | Stripe.DeletedCustomer;
+
+      /**
+       * ID of the account representing the customer.
+       */
+      customer_account: string | null;
 
       /**
        * Customer balance transaction related to this credit note.
@@ -87,7 +92,7 @@ declare module 'stripe' {
       memo: string | null;
 
       /**
-       * Set of [key-value pairs](https://stripe.com/docs/api/metadata) that you can attach to an object. This can be useful for storing additional information about the object in a structured format.
+       * Set of [key-value pairs](https://docs.stripe.com/api/metadata) that you can attach to an object. This can be useful for storing additional information about the object in a structured format.
        */
       metadata: Stripe.Metadata | null;
 
@@ -137,7 +142,7 @@ declare module 'stripe' {
       shipping_cost: CreditNote.ShippingCost | null;
 
       /**
-       * Status of this credit note, one of `issued` or `void`. Learn more about [voiding credit notes](https://stripe.com/docs/billing/invoices/credit-notes#voiding).
+       * Status of this credit note, one of `issued` or `void`. Learn more about [voiding credit notes](https://docs.stripe.com/billing/invoices/credit-notes#voiding).
        */
       status: CreditNote.Status;
 
@@ -231,9 +236,35 @@ declare module 'stripe' {
         amount_refunded: number;
 
         /**
+         * The PaymentRecord refund details associated with this credit note refund.
+         */
+        payment_record_refund: Refund.PaymentRecordRefund | null;
+
+        /**
          * ID of the refund.
          */
         refund: string | Stripe.Refund;
+
+        /**
+         * Type of the refund, one of `refund` or `payment_record_refund`.
+         */
+        type: Refund.Type | null;
+      }
+
+      namespace Refund {
+        interface PaymentRecordRefund {
+          /**
+           * ID of the payment record.
+           */
+          payment_record: string;
+
+          /**
+           * ID of the refund group.
+           */
+          refund_group: string;
+        }
+
+        type Type = 'payment_record_refund' | 'refund';
       }
 
       interface ShippingCost {
@@ -364,6 +395,9 @@ declare module 'stripe' {
         type TaxBehavior = 'exclusive' | 'inclusive';
 
         interface TaxRateDetails {
+          /**
+           * ID of the tax rate
+           */
           tax_rate: string;
         }
       }

@@ -1,6 +1,7 @@
 import { db } from '../config/firebase.js';
 import { getOrCreateWalletTx, ledgerWriteTx, assertAmount, to2 } from './paysat_crypto_wallet_service.js';
 import { upsertWalletAssetTx } from './paysat_crypto_wallet_store_service.js';
+import { recordP2PEscrowLockEntry, recordP2PEscrowReleaseEntry, recordLedgerEntry } from './ledger_service.js';
 
 function now() { return new Date(); }
 
@@ -41,7 +42,32 @@ export async function lockEscrow({ sellerUid, asset, amount, orderId }) {
       meta: { from: 'available', to: 'escrow' },
       createdAt: now(),
     });
+
+    // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+    // Nota: No se puede usar tx dentro de recordP2PEscrowLockEntry porque ya estamos en una transacción
+    // Se registrará después de la transacción
   });
+
+  // ✅ Registrar en PaySat_Ledger después de la transacción exitosa
+  try {
+    await recordP2PEscrowLockEntry({
+      user_account: sellerUid,
+      amount: amt,
+      asset: assetU,
+      balance_after: null, // Se calculará en la consulta si es necesario
+      escrow_after: null,
+      order_id: orderId,
+      meta: {
+        transaction_type: 'p2p_escrow_lock',
+        from: 'available',
+        to: 'escrow',
+        order_id: orderId
+      }
+    });
+  } catch (ledgerError) {
+    console.error('⚠️ Error registrando en PaySat_Ledger (lock escrow):', ledgerError);
+    // No lanzamos el error para no afectar la transacción principal
+  }
 
   return true;
 }
@@ -100,6 +126,26 @@ export async function releaseEscrow({ sellerUid, buyerUid, asset, amount, orderI
     });
   });
 
+  // ✅ Registrar en PaySat_Ledger después de la transacción exitosa
+  try {
+    await recordP2PEscrowReleaseEntry({
+      from_account: sellerUid,
+      to_account: buyerUid,
+      amount: amt,
+      asset: assetU,
+      balance_after_to: null,
+      order_id: orderId,
+      meta: {
+        transaction_type: 'p2p_escrow_release',
+        from: 'seller.escrow',
+        to: 'buyer.available',
+        order_id: orderId
+      }
+    });
+  } catch (ledgerError) {
+    console.error('⚠️ Error registrando en PaySat_Ledger (release escrow):', ledgerError);
+  }
+
   return true;
 }
 
@@ -138,6 +184,28 @@ export async function refundEscrowToSeller({ sellerUid, asset, amount, orderId }
       createdAt: now(),
     });
   });
+
+  // ✅ Registrar en PaySat_Ledger después de la transacción exitosa
+  try {
+    await recordLedgerEntry({
+      type: 'P2P_ESCROW_REFUND',
+      debit_account: 'PAYSAT_P2P_ESCROW',
+      credit_account: sellerUid,
+      amount: amt,
+      currency: assetU,
+      balance_after_debit: null,
+      balance_after_credit: null,
+      description: `P2P Escrow Refund to Seller - Order ${orderId}`,
+      meta: {
+        transaction_type: 'p2p_escrow_refund_seller',
+        from: 'escrow',
+        to: 'available',
+        order_id: orderId
+      }
+    });
+  } catch (ledgerError) {
+    console.error('⚠️ Error registrando en PaySat_Ledger (refund escrow):', ledgerError);
+  }
 
   return true;
 }

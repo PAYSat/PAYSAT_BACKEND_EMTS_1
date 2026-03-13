@@ -1,8 +1,7 @@
 import { admin, db } from '../config/firebase.js';
 import { getUserAccountNumber } from './paysat_service.js';
 import { v4 as uuidv4 } from 'uuid';
-import { centsToAmount } from '../utils/cents_to_amount.js';
-
+import { centsToAmount } from '../utils/cents_to_amount.js';import { recordRechargeEntry, recordFeeEntry, recordDepositEntry } from './ledger_service.js';
 // Fee estándar de PaySat en centavos
 const PAYSAT_FEE_CENTS = 100; // 1.00 USD
 const PAYSAT_FEE_AMOUNT = "1.00";
@@ -140,6 +139,37 @@ async function createRechargeMovement(sessionData, paymentIntentId, rechargeId) 
     
     if (result.success) {
       console.log('✅ Movimiento de recarga creado:', movementId);
+      
+      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+      try {
+        // Obtener el balance actualizado
+        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatUID);
+        const userMovementsDoc = await userMovementsRef.get();
+        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : balanceChange;
+        
+        await recordRechargeEntry({
+          user_account: paysatUID,
+          amount: parseFloat(sessionData.amount),
+          currency: sessionData.currency || 'USD',
+          balance_after: currentBalance,
+          description: `Recarga Stripe - ${movementId}`,
+          meta: {
+            payment_intent_id: paymentIntentId,
+            recharge_id: rechargeId,
+            charge_id: sessionData.charge_id || null,
+            user_email: sessionData.userEmail || null,
+            user_name: sessionData.userName || null,
+            source: 'stripe_webhook',
+            movement_id: movementId,
+            account_number: PAYSATAccountNumber
+          }
+        });
+        console.log('✅ Recarga registrada en PaySat_Ledger:', movementId);
+      } catch (ledgerError) {
+        console.error('⚠️ Error registrando recarga en PaySat_Ledger:', ledgerError);
+        // No lanzamos el error para no afectar la transacción principal
+      }
+      
       return { success: true, documentId: movementId, data: rechargeMovement };
     } else {
       throw new Error(result.error);
@@ -214,6 +244,41 @@ async function createFeeMovement(feeData, sessionData, balanceTransactionId) {
     
     if (result.success) {
       console.log('✅ Movimiento de fee creado:', movementId);
+      
+      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+      try {
+        // Obtener el balance actualizado
+        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatUID);
+        const userMovementsDoc = await userMovementsRef.get();
+        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : 0;
+        
+        const paysatMainUID = process.env.PAYSAT_MAIN_ACCOUNT_UID || 'PAYSAT_SYSTEM';
+        
+        await recordFeeEntry({
+          user_account: paysatUID,
+          system_account: paysatMainUID,
+          fee_amount: parseFloat(centsToAmount(totalFee_cents)),
+          currency: feeData.currency || 'USD',
+          balance_after: currentBalance,
+          description: `Transaction Fee - ${movementId}`,
+          meta: {
+            stripe_fee: parseFloat(centsToAmount(stripeFee_cents)),
+            stripe_fee_cents: stripeFee_cents,
+            paysat_fee: parseFloat(PAYSAT_FEE_AMOUNT),
+            paysat_fee_cents: PAYSAT_FEE_CENTS,
+            total_fee_cents: totalFee_cents,
+            balance_transaction_id: balanceTransactionId,
+            source: 'stripe_webhook',
+            movement_id: movementId,
+            account_number: PAYSATAccountNumber,
+            fee_type: 'recharge_fee'
+          }
+        });
+        console.log('✅ Fee registrado en PaySat_Ledger:', movementId);
+      } catch (ledgerError) {
+        console.error('⚠️ Error registrando fee en PaySat_Ledger:', ledgerError);
+      }
+      
       return { success: true, documentId: movementId, data: feeMovement };
     } else {
       throw new Error(result.error);
@@ -237,7 +302,35 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     const paysatMainEmail = process.env.PAYSAT_MAIN_ACCOUNT_EMAIL;
     const paysatMainNumber = process.env.PAYSAT_MAIN_ACCOUNT_NUMBER;
     
-    // Validar que existan las variables de entorno
+    //
+      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+      try {
+        // Obtener el balance actualizado
+        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatMainUID);
+        const userMovementsDoc = await userMovementsRef.get();
+        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : balanceChange;
+        
+        await recordDepositEntry({
+          user_account: paysatMainUID,
+          amount: parseFloat(PAYSAT_FEE_AMOUNT),
+          currency: 'USD',
+          balance_after: currentBalance,
+          description: `PaySat Fee Collection - ${movementId}`,
+          meta: {
+            balance_transaction_id: balanceTransactionId,
+            source: 'paysat_fee_collection',
+            movement_id: movementId,
+            account_number: paysatMainNumber,
+            account_email: paysatMainEmail,
+            deposit_type: 'fee_collection'
+          }
+        });
+        console.log('✅ Depósito PaySat registrado en PaySat_Ledger:', movementId);
+      } catch (ledgerError) {
+        console.error('⚠️ Error registrando depósito PaySat en PaySat_Ledger:', ledgerError);
+      }
+      
+      // Validar que existan las variables de entorno
     if (!paysatMainUID || !paysatMainEmail || !paysatMainNumber) {
       throw new Error('Variables de entorno PAYSAT_MAIN_ACCOUNT no configuradas correctamente');
     }
@@ -322,6 +415,37 @@ async function createCardBuyMovement(paysatUID, cardData) {
     
     if (result.success) {
       console.log('✅ Movimiento de compra de tarjeta creado:', movementId);
+      
+      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+      try {
+        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatUID);
+        const userMovementsDoc = await userMovementsRef.get();
+        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : 0;
+        
+        const paysatMainUID = process.env.PAYSAT_MAIN_ACCOUNT_UID || 'PAYSAT_SYSTEM';
+        
+        await recordFeeEntry({
+          user_account: paysatUID,
+          system_account: paysatMainUID,
+          fee_amount: parseFloat(cardData.amount),
+          currency: cardData.currency || 'USD',
+          balance_after: currentBalance,
+          description: `Virtual Card Purchase - ${movementId}`,
+          meta: {
+            card_id: cardData.card_id,
+            provider: 'stripe_issuing',
+            source: 'card_issuance',
+            movement_id: movementId,
+            account_number: cardData.PAYSATAccountNumber,
+            email: cardData.email,
+            fee_type: 'card_issuance'
+          }
+        });
+        console.log('✅ Compra de tarjeta registrada en PaySat_Ledger:', movementId);
+      } catch (ledgerError) {
+        console.error('⚠️ Error registrando compra de tarjeta en PaySat_Ledger:', ledgerError);
+      }
+      
       return { success: true, documentId: movementId, data: buyMovement };
     } else {
       throw new Error(result.error);
@@ -380,6 +504,13 @@ async function createCardDepositMovement(cardData, originalPaysatUID) {
     
     if (result.success) {
       console.log('✅ Depósito PAYSAT por tarjeta creado:', movementId);
+      
+      // ℹ️ NOTA: No se registra en PaySat_Ledger aquí porque ya se registró
+      // en createCardBuyMovement() como una transacción FEE directa del usuario
+      // a la cuenta principal de PaySat. Esto evita duplicación en el ledger.
+      // El movimiento en Banco_PaySat_Money (arriba) sigue funcionando para
+      // la contabilidad interna del sistema.
+      
       return { success: true, documentId: movementId, data: depositMovement };
     } else {
       throw new Error(result.error);
