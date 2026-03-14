@@ -168,6 +168,42 @@ class AppAccountAndCardPaysatTransactionsController {
                         reason: mov.reason || null,
                         status: mov.status || null
                     }),
+
+                    ...(typeMovement === 'mobile_transfer_sent' && {
+                        originUID: mov.originUID || null,
+                        destinationUID: mov.destinationUID || null,
+                        destinationPhoneNumber: mov.destinationPhoneNumber || null,
+                        userName: mov.userName || null,
+                        reason: mov.reason || null,
+                        fee: mov.fee || null,
+                        total: mov.total || null,
+                        originType: mov.originType || null,
+                        originAffiliateName: mov.originAffiliateName || null,
+                        status: mov.status || null
+                    }),
+
+                    ...(typeMovement === 'mobile_transfer_received' && {
+                        originUID: mov.originUID || null,
+                        destinationUID: mov.destinationUID || null,
+                        userName: mov.userName || null,
+                        reason: mov.reason || null,
+                        status: mov.status || null
+                    }),
+
+                    ...(typeMovement === 'external_transfer_in' && {
+                        description: mov.description || null,
+                        originType: mov.originType || null,
+                        originAffiliateName: mov.originAffiliateName || null,
+                        status: mov.status || null
+                    }),
+
+                    ...(typeMovement === 'external_transfer_out' && {
+                        description: mov.description || null,
+                        destinationType: mov.destinationType || null,
+                        destinationPhoneNumber: mov.destinationPhoneNumber || null,
+                        accountNumber: mov.accountNumber || null,
+                        status: mov.status || null
+                    }),
                     
                     PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
                     createdAt: mov.createdAt || null,
@@ -211,12 +247,13 @@ class AppAccountAndCardPaysatTransactionsController {
                 const typeMovement = tx.typeMovement;
                 
                 // Aplicar el movimiento al balance
-                if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
+                // Todos los amounts vienen positivos, el typeMovement determina si suma o resta
+                if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received' || typeMovement === 'mobile_transfer_received' || typeMovement === 'external_transfer_in') {
                     balanceAcumulado += monto;
-                } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent') {
+                } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent' || typeMovement === 'mobile_transfer_sent' || typeMovement === 'external_transfer_out') {
                     balanceAcumulado -= monto;
                 } else if (typeMovement === 'fee') {
-                    const feeAmount = parseFloat(tx.totalFee) || 0;
+                    const feeAmount = parseFloat(tx.totalFee || tx.amount) || 0;
                     balanceAcumulado -= feeAmount;
                 }
                 
@@ -488,12 +525,13 @@ class AppAccountAndCardPaysatTransactionsController {
             const typeMovement = tx.typeMovement;
             
             // Aplicar el movimiento al balance de la tarjeta
-            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
+            // Todos los amounts vienen positivos, el typeMovement determina si suma o resta
+            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received' || typeMovement === 'mobile_transfer_received' || typeMovement === 'external_transfer_in') {
                 balanceAcumulado += monto;
-            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
+            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent' || typeMovement === 'mobile_transfer_sent' || typeMovement === 'external_transfer_out') {
                 balanceAcumulado -= monto;
             } else if (typeMovement === 'fee') {
-                balanceAcumulado -= tx.totalFee || 0;
+                balanceAcumulado -= (tx.totalFee || tx.amount || 0);
             }
             
             // Asignar balance después de la transacción

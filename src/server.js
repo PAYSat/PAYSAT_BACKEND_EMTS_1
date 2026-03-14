@@ -50,6 +50,10 @@ import appTransfers from './routes/app_transfers.js';
 import appSignupOtp from './routes/app_signup_otp.js';
 import appTempSubirDatos from './routes/app_temp_subir_datos.js';
 
+// Rutas para Notificaciones y Referencias de Seguridad
+import securityReferencesRouter from './routes/security_references.js';
+import fcmTokensRouter from './routes/fcm_tokens.js';
+
 const app = express();
 
 applyCors(app);
@@ -126,6 +130,10 @@ app.use('/api/paysat/queries', queriesFirebaseRouter);
 
 // Transferencias internacionales
 app.use('/api/transfer', appTransfers);
+
+// Notificaciones Push y Referencias de Seguridad  
+app.use('/api/security-references', securityReferencesRouter);
+app.use('/api/fcm', fcmTokensRouter);
 
 // ====== Vista segura de la tarjeta (Issuing Elements) ======
 app.use('/secure-cards', secureCardsViewRouter);

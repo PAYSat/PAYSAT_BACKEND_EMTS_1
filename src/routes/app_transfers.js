@@ -42,6 +42,7 @@ router.post('/user/register/destination/phone-number', linkedUserPhoneNumbersTra
 router.delete('/user/delete/destination/phone-number/:phoneNumberFull', linkedUserPhoneNumbersTransferController.deleteDestinationPhoneNumber);
 router.get('/user/destination/phone-number/fee', linkedUserPhoneNumbersTransferController.getPhoneNumberTransferFee);
 router.post('/user/send/transfer/to/phone-number', linkedUserPhoneNumbersTransferController.sendTransferToPhoneNumber);
+router.post('/user/receive/pending/phone-number/transfer', linkedUserPhoneNumbersTransferController.receivePendingPhoneNumberTransfer);
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------//
