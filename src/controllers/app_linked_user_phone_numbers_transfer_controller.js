@@ -164,8 +164,13 @@ class LinkedUserPhoneNumbersTransferController {
             }
 
             const uid = req.user.uid;
-            // Permitir phoneNumberFull desde body o params
-            const phoneNumberFull = req.body.phoneNumberFull || req.params.phoneNumberFull;
+            
+            // Decodificar el parámetro de la URL ya que puede contener caracteres especiales como +
+            const phoneNumberFull = decodeURIComponent(req.params.phoneNumberFull || req.body.phoneNumberFull || '');
+
+            console.log('[deleteDestinationPhoneNumber] uid:', uid);
+            console.log('[deleteDestinationPhoneNumber] phoneNumberFull from params:', req.params.phoneNumberFull);
+            console.log('[deleteDestinationPhoneNumber] phoneNumberFull decoded:', phoneNumberFull);
 
             // Validar que se envíe el phoneNumberFull
             if (!phoneNumberFull) {
