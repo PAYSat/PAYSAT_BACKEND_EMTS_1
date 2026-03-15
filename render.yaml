@@ -3,6 +3,7 @@ services:
     runtime: node
     name: paysat-backend
     plan: starter
+    rootDir: .
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
