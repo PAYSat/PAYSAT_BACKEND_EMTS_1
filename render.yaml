@@ -4,7 +4,7 @@ services:
     name: paysat-backend
     plan: starter
     rootDir: .
-    buildCommand: npm install
+    buildCommand: rm -rf src/node_modules && npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:
