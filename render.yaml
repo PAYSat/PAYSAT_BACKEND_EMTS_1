@@ -4,15 +4,11 @@ services:
     name: paysat-backend
     plan: starter
     rootDir: .
-    region: ohio
-    buildCommand: npm ci
-    startCommand: node src/server.js
+    buildCommand: npm install
+    startCommand: npm start
     healthCheckPath: /health
-    env: node
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NODE_OPTIONS
-        value: --max_old_space_size=4096
-      - key: NODE_VERSION
-        value: 20.11.0
+      - key: NODE_PATH
+        value: ./node_modules

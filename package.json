@@ -1,14 +1,14 @@
 {
   "name": "paysat-backend",
   "version": "1.0.0",
-  "main": "src/server.js",
+  "main": "index.js",
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "start": "node index.js",
     "build": "echo 'No build step required'"
   },
   "dependencies": {
