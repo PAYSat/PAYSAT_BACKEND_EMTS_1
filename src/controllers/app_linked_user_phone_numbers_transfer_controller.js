@@ -911,7 +911,7 @@ class LinkedUserPhoneNumbersTransferController {
                             originUID: uid,
                             destinationPhoneNumber: destinationPhoneNumber,
                             typeMovement: 'mobile_transfer_sent',
-                            status: 'pending',
+                            status: 'success',
                             fee: feeValue,
                             total: transferAmount + feeValue,
                             reason: reason || ''
@@ -960,7 +960,8 @@ class LinkedUserPhoneNumbersTransferController {
                             destinationUserName: destinationUserName,
                             typeMovement: 'escrow_pending_transfer',
                             status: 'pending',
-                            reason: reason || ''
+                            reason: reason || '',
+                            processed: false // Campo para marcar cuando se procese la transferencia al registrarse el usuario destino
                         };
 
                         transaction.update(paysatMainAccountRef, {
@@ -1008,7 +1009,7 @@ class LinkedUserPhoneNumbersTransferController {
                             updatedAt: timestamp,
                             destinationPhoneNumber: destinationPhoneNumber,
                             typeMovement: 'external_transfer_out',
-                            status: 'pending'
+                            status: 'success', // Aunque la transferencia al usuario destino está pendiente, desde la perspectiva de la cuenta externa ya se realizó el débito, por lo que se marca como 'success'    
                         };
 
                         transaction.update(externalAccountRef, {
@@ -1128,7 +1129,8 @@ class LinkedUserPhoneNumbersTransferController {
                             destinationUserName: destinationUserName,
                             typeMovement: 'escrow_pending_transfer',
                             status: 'pending',
-                            reason: reason || ''
+                            reason: reason || '',
+                            processed: false, // Campo para marcar cuando se procese la transferencia al registrarse el usuario destino
                         };
 
                         transaction.update(paysatMainAccountRef, {
@@ -1294,7 +1296,336 @@ class LinkedUserPhoneNumbersTransferController {
     }
 
     receivePendingPhoneNumberTransfer = async (req, res) => {
-        
+        try {
+            // 1. VALIDAR AUTENTICACIÓN
+            if (!req.user || !req.user.uid) {
+                return res.status(401).json({
+                    ok: false,
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            const uid = req.user.uid;
+
+            // 2. VERIFICAR FIRSTLOGIN EN PAYSAT_USERS
+            const userRef = db.collection('PaySat_Users').doc(uid);
+            const userDoc = await userRef.get();
+
+            if (!userDoc.exists) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'Usuario no encontrado en PaySat_Users'
+                });
+            }
+
+            const userData = userDoc.data();
+            
+            // Si firstLogin no es true, no procesar
+            if (userData.firstLogin !== true) {
+                return res.status(200).json({
+                    ok: true,
+                    message: 'No hay transferencias pendientes por procesar',
+                    data: {
+                        firstLogin: false,
+                        transfersProcessed: 0
+                    }
+                });
+            }
+
+            // 3. OBTENER DATOS DEL USUARIO DESDE BANCO_PAYSAT_MONEY
+            const userPhoneNumber = userData.phoneNumber;
+            const userDni = userData.dniPersonalNumber;
+
+            if (!userPhoneNumber || !userDni) {
+                return res.status(400).json({
+                    ok: false,
+                    message: 'Usuario no tiene phoneNumber o dniPersonalNumber configurado'
+                });
+            }
+
+            // Buscar cuenta principal del nuevo usuario
+            const userAccountSnapshot = await db.collection('Banco_PaySat_Money')
+                .where('customerID', '==', userDni)
+                .where('customerPhone', '==', userPhoneNumber)
+                .where('mainAccount', '==', true)
+                .limit(1)
+                .get();
+
+            if (userAccountSnapshot.empty) {
+                return res.status(404).json({
+                    ok: false,
+                    message: 'No se encontró la cuenta principal PaySat del usuario'
+                });
+            }
+
+            const userAccountDoc = userAccountSnapshot.docs[0];
+            const userAccountData = userAccountDoc.data();
+            const userAccountRef = userAccountDoc.ref;
+
+            console.log(`[receivePendingPhoneNumberTransfer] Usuario: ${userAccountData.fullName}, Teléfono: ${userPhoneNumber}`);
+
+            // 4. OBTENER CUENTA MASTER DE PAYSAT
+            const PAYSAT_MAIN_ACCOUNT_UID = process.env.PAYSAT_MAIN_ACCOUNT_UID;
+            const PAYSAT_MAIN_ACCOUNT_NUMBER = process.env.PAYSAT_MAIN_ACCOUNT_NUMBER;
+
+            const paysatMainAccountRef = db.collection('Banco_PaySat_Money').doc(PAYSAT_MAIN_ACCOUNT_UID);
+            const paysatMainAccountDoc = await paysatMainAccountRef.get();
+
+            if (!paysatMainAccountDoc.exists) {
+                return res.status(500).json({
+                    ok: false,
+                    message: 'Error: No se encontró la cuenta principal de PaySat'
+                });
+            }
+
+            const paysatMainAccountData = paysatMainAccountDoc.data();
+            const paysatMainBalance = paysatMainAccountData.customerBalance || 0;
+            const paysatMainEscrow = paysatMainAccountData.customerEscrow || 0;
+
+            // 5. BUSCAR TRANSFERENCIAS PENDIENTES
+            const customerMovements = paysatMainAccountData.customerMovements || [];
+            const pendingTransfers = customerMovements.filter(movement => 
+                movement.status === 'pending' &&
+                movement.destinationPhoneNumber === userPhoneNumber &&
+                movement.typeMovement === 'escrow_pending_transfer' &&
+                movement.processed === false // Asegurarse de no incluir transferencias ya procesadas
+            );
+
+            if (pendingTransfers.length === 0) {
+                // No hay transferencias pendientes, pero actualizar firstLogin
+                await userRef.update({ firstLogin: false });
+
+                return res.status(200).json({
+                    ok: true,
+                    message: 'No hay transferencias pendientes para este usuario',
+                    data: {
+                        firstLogin: false,
+                        transfersProcessed: 0
+                    }
+                });
+            }
+
+            console.log(`[receivePendingPhoneNumberTransfer] Encontradas ${pendingTransfers.length} transferencias pendientes`);
+
+            // 6. CALCULAR TOTAL A TRANSFERIR
+            const totalToTransfer = pendingTransfers.reduce((sum, transfer) => sum + (transfer.amount || 0), 0);
+
+            // Verificar que haya suficiente en escrow
+            if (paysatMainEscrow < totalToTransfer) {
+                return res.status(500).json({
+                    ok: false,
+                    message: 'Error: Saldo insuficiente en escrow de la cuenta master',
+                    data: {
+                        required: totalToTransfer,
+                        available: paysatMainEscrow
+                    }
+                });
+            }
+
+            // 7. PROCESAR TRANSFERENCIAS EN TRANSACCIÓN ATÓMICA
+            const processedTransfers = [];
+            const timestamp = new Date().toISOString();
+            const firestoreTimestamp = admin.firestore.Timestamp.now();
+            let newUserBalance = 0; // Declarar fuera para usarlo en ledger
+
+            await db.runTransaction(async (transaction) => {
+                // Obtener datos actualizados dentro de la transacción
+                const paysatAccountSnapshot = await transaction.get(paysatMainAccountRef);
+                const userAccountSnapshot = await transaction.get(userAccountRef);
+
+                if (!paysatAccountSnapshot.exists || !userAccountSnapshot.exists) {
+                    throw new Error('Cuentas no encontradas durante la transacción');
+                }
+
+                const paysatData = paysatAccountSnapshot.data();
+                const currentPaysatBalance = paysatData.customerBalance || 0;
+                const currentPaysatEscrow = paysatData.customerEscrow || 0;
+
+                const userData = userAccountSnapshot.data();
+                const currentUserBalance = userData.customerBalance || 0;
+                const currentUserEscrow = userData.customerEscrow || 0;
+
+                // Verificar nuevamente que hay suficiente en escrow
+                if (currentPaysatEscrow < totalToTransfer) {
+                    throw new Error(`Saldo insuficiente en escrow: ${currentPaysatEscrow} < ${totalToTransfer}`);
+                }
+
+                // Actualizar balances de cuenta master
+                const newPaysatEscrow = currentPaysatEscrow - totalToTransfer;
+                const newPaysatTotal = currentPaysatBalance + newPaysatEscrow;
+
+                transaction.update(paysatMainAccountRef, {
+                    customerEscrow: newPaysatEscrow,
+                    customerTotal: newPaysatTotal,
+                    updatedAt: firestoreTimestamp
+                });
+
+                // Actualizar balances de cuenta usuario
+                newUserBalance = currentUserBalance + totalToTransfer;
+                const newUserTotal = newUserBalance + currentUserEscrow;
+
+                transaction.update(userAccountRef, {
+                    customerBalance: newUserBalance,
+                    customerTotal: newUserTotal,
+                    updatedAt: firestoreTimestamp
+                });
+
+                // Preparar array de movimientos actualizados para cuenta master
+                const updatedPaysatMovements = [...(paysatData.customerMovements || [])];
+                const userMovementsToAdd = [];
+
+                // Procesar cada transferencia pendiente
+                for (const pendingTransfer of pendingTransfers) {
+                    const transferAmount = pendingTransfer.amount || 0;
+                    const originUID = pendingTransfer.originUID;
+                    const originType = pendingTransfer.originType || 'paysat_account';
+                    const originAffiliateName = pendingTransfer.originAffiliateName || 'PAYSAT MONEY LTD';
+                    const reason = pendingTransfer.reason || '';
+
+                    // ID único para los nuevos movimientos
+                    const completedTransferId = pendingTransfer.id.replace('escrow_pending_', 'transfer_completed_');
+
+                    // 1. Marcar el movimiento pendiente como procesado
+                    const pendingIndex = updatedPaysatMovements.findIndex(m => m.id === pendingTransfer.id);
+                    if (pendingIndex !== -1) {
+                        updatedPaysatMovements[pendingIndex] = {
+                            ...updatedPaysatMovements[pendingIndex],
+                            processed: true,
+                            processedAt: timestamp
+                        };
+                    }
+
+                    // 2. Movimiento en cuenta master (salida de escrow completada)
+                    const masterCompletedMovement = {
+                        PAYSATAccountNumber: PAYSAT_MAIN_ACCOUNT_NUMBER,
+                        amount: transferAmount,
+                        amount_cents: Math.round(transferAmount * 100),
+                        createdAt: timestamp,
+                        currency: 'usd',
+                        id: completedTransferId,
+                        description: `Transferencia completada a ${userPhoneNumber}`,
+                        paysatUID: PAYSAT_MAIN_ACCOUNT_UID,
+                        updatedAt: timestamp,
+                        originUID: originUID,
+                        originType: originType,
+                        originAffiliateName: originAffiliateName,
+                        destinationUID: uid,
+                        destinationPhoneNumber: userPhoneNumber,
+                        destinationUserName: userData.fullName || 'Usuario',
+                        typeMovement: 'escrow_transfer_completed',
+                        status: 'success',
+                        reason: reason,
+                        relatedPendingId: pendingTransfer.id
+                    };
+
+                    updatedPaysatMovements.push(masterCompletedMovement);
+
+                    // 3. Movimiento en cuenta del nuevo usuario (recepción)
+                    const userReceivedMovement = {
+                        PAYSATAccountNumber: userData.customerAccountNumber,
+                        amount: transferAmount,
+                        amount_cents: Math.round(transferAmount * 100),
+                        createdAt: timestamp,
+                        currency: 'usd',
+                        id: `received_${completedTransferId}`,
+                        description: `Transferencia recibida de ${originAffiliateName}`,
+                        paysatUID: uid,
+                        updatedAt: timestamp,
+                        originUID: originUID,
+                        originType: originType,
+                        originAffiliateName: originAffiliateName,
+                        typeMovement: 'mobile_transfer_received',
+                        status: 'success',
+                        reason: reason,
+                        relatedPendingId: pendingTransfer.id
+                    };
+
+                    userMovementsToAdd.push(userReceivedMovement);
+
+                    processedTransfers.push({
+                        amount: transferAmount,
+                        from: originAffiliateName,
+                        originUID: originUID,
+                        pendingId: pendingTransfer.id,
+                        completedId: completedTransferId
+                    });
+                }
+
+                // Actualizar movimientos de cuenta master (incluye pendientes marcados como processed:true)
+                transaction.update(paysatMainAccountRef, {
+                    customerMovements: updatedPaysatMovements
+                });
+
+                // Actualizar movimientos de cuenta usuario (agregar recibidos)
+                transaction.update(userAccountRef, {
+                    customerMovements: admin.firestore.FieldValue.arrayUnion(...userMovementsToAdd)
+                });
+
+                console.log(`[receivePendingPhoneNumberTransfer] Procesadas ${processedTransfers.length} transferencias en transacción`);
+            });
+
+            // 8. REGISTRAR EN LEDGER (fuera de la transacción)
+            try {
+                for (const transfer of processedTransfers) {
+                    await recordLedgerEntry({
+                        type: 'TRANSFER',
+                        debit_account: PAYSAT_MAIN_ACCOUNT_UID,
+                        credit_account: uid,
+                        amount: transfer.amount,
+                        currency: 'USD',
+                        balance_after_debit: paysatMainBalance, // Balance no cambia, solo escrow
+                        balance_after_credit: newUserBalance,
+                        description: `Transferencia pendiente completada para ${userPhoneNumber}`,
+                        meta: {
+                            transaction_id: transfer.completedId,
+                            origin_uid: transfer.originUID,
+                            origin_affiliate: transfer.from,
+                            destination_phone: userPhoneNumber,
+                            type: 'pending_transfer_completion',
+                            related_pending_id: transfer.pendingId
+                        },
+                        req
+                    });
+                }
+            } catch (ledgerError) {
+                console.error('Error registrando en ledger:', ledgerError);
+                // No fallar el proceso por error en ledger, ya que la transacción atómica se completó
+            }
+
+            // 9. ACTUALIZAR FIRSTLOGIN A FALSE
+            await userRef.update({ 
+                firstLogin: false,
+                firstLoginProcessedAt: admin.firestore.Timestamp.now()
+            });
+
+            console.log(`[receivePendingPhoneNumberTransfer] Proceso completado exitosamente`);
+
+            // 10. RESPUESTA EXITOSA
+            return res.status(200).json({
+                ok: true,
+                message: `${processedTransfers.length} transferencia(s) pendiente(s) procesada(s) exitosamente`,
+                data: {
+                    firstLogin: false,
+                    transfersProcessed: processedTransfers.length,
+                    totalReceived: totalToTransfer,
+                    transfers: processedTransfers.map(t => ({
+                        amount: t.amount,
+                        from: t.from
+                    }))
+                }
+            });
+
+        } catch (error) {
+            console.error('Error en receivePendingPhoneNumberTransfer:', error);
+            
+            // En caso de error, la transacción de Firestore ya hizo rollback automáticamente
+            return res.status(500).json({
+                ok: false,
+                message: 'Error al procesar las transferencias pendientes',
+                error: error.message,
+                detail: 'El proceso se revertió automáticamente. Puedes intentar nuevamente.'
+            });
+        }
     }
 }
 

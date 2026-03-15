@@ -35,7 +35,8 @@ export const userProfile = async (req, res) => {
           country: userData.data().country ?? null,
           city: userData.data().city ?? null,
           ocrPersonalAddress: userData.data().ocrPersonalAddress ?? null,
-          PAYSATAccountNumber: userData.data().PAYSATAccountNumber ?? null
+          PAYSATAccountNumber: userData.data().PAYSATAccountNumber ?? null,
+          firstLogin: userData.data().firstLogin ?? null,
         }
       };
 
