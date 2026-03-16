@@ -2,6 +2,46 @@ import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
 import { sendSMS, sendWhatsApp } from './sms_service.js';
 import { generateUniqueSecurityReference, saveSecurityReference } from './security_reference_service.js';
+import { emailService } from './send_email_service.js';
+
+/**
+ * Obtiene el email de un usuario con cuenta PaySat
+ */
+async function getUserEmail(uid) {
+    try {
+        const userDoc = await db.collection('PaySat_Users').doc(uid).get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            return userData.email || null;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error obteniendo email para UID ${uid}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Obtiene el email de un usuario sin cuenta PaySat (registrado por teléfono)
+ */
+async function getEmailByPhoneNumber(phoneNumber) {
+    try {
+        const snapshot = await db.collection('PaySat_User_Registered_PhoneNumbers_Mobile')
+            .where('destinationFullPhoneNumber', '==', phoneNumber)
+            .limit(1)
+            .get();
+        
+        if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            const data = doc.data();
+            return data.destinationEmail || null;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error obteniendo email para teléfono ${phoneNumber}:`, error);
+        return null;
+    }
+}
 
 /**
  * Obtiene los tokens FCM de un usuario
@@ -110,6 +150,36 @@ export async function notifyPaySatToPaySatTransfer({
 
         results.destination = await notifyUser(destinationUID, destinationPayload);
 
+        // Enviar emails
+        const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
+        
+        // Email al origen
+        const originEmail = await getUserEmail(originUID);
+        if (originEmail) {
+            results.originEmail = await emailService.sendOriginMobilePaymentEmail({
+                email: originEmail,
+                originName,
+                destinationName,
+                amount,
+                feeValue,
+                fecha,
+                affiliateName: null // Es desde cuenta PaySat
+            });
+        }
+
+        // Email al destino
+        const destinationEmail = await getUserEmail(destinationUID);
+        if (destinationEmail) {
+            results.destinationEmail = await emailService.sendDestinationMobilePaymentEmail({
+                email: destinationEmail,
+                destinationName,
+                originName,
+                amount,
+                fecha,
+                hasAccount: true
+            });
+        }
+
         return {
             success: true,
             results
@@ -179,6 +249,36 @@ export async function notifyExternalToPaySatTransfer({
         };
 
         results.destination = await notifyUser(destinationUID, destinationPayload);
+
+        // Enviar emails
+        const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
+        
+        // Email al origen
+        const originEmail = await getUserEmail(originUID);
+        if (originEmail) {
+            results.originEmail = await emailService.sendOriginMobilePaymentEmail({
+                email: originEmail,
+                originName,
+                destinationName,
+                amount,
+                feeValue,
+                fecha,
+                affiliateName // Es desde cuenta externa
+            });
+        }
+
+        // Email al destino
+        const destinationEmail = await getUserEmail(destinationUID);
+        if (destinationEmail) {
+            results.destinationEmail = await emailService.sendDestinationMobilePaymentEmail({
+                email: destinationEmail,
+                destinationName,
+                originName,
+                amount,
+                fecha,
+                hasAccount: true
+            });
+        }
 
         return {
             success: true,
@@ -297,13 +397,38 @@ https://play.google.com/store/apps/details?id=com.paysat.paysatapp`;
             console.log(`✅ WhatsApp enviado exitosamente`);
         }
 
-        // if (whatsappResult.success) {
-        //     results.sms = whatsappResult;
-        //     results.smsMethod = 'WhatsApp';
-        //     console.log(`✅ WhatsApp enviado exitosamente`); 
-        // }else{
-        //     console.log(`🔄 WhatsApp falló para ${destinationPhoneNumber} (Error ${whatsappResult.errorCode}): ${whatsappResult.error}`);
-        // }
+        // Enviar emails
+        const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
+        
+        // Email al origen
+        const originEmail = await getUserEmail(originUID);
+        if (originEmail) {
+            results.originEmail = await emailService.sendOriginMobilePaymentEmail({
+                email: originEmail,
+                originName: originUserName,
+                destinationName,
+                amount,
+                feeValue,
+                fecha,
+                affiliateName: isOriginPaySat ? null : affiliateName,
+                securityReference: securityRef,
+                destinationPhoneNumber
+            });
+        }
+
+        // Email al destino (usuario sin cuenta PaySat)
+        const destinationEmail = await getEmailByPhoneNumber(destinationPhoneNumber);
+        if (destinationEmail) {
+            results.destinationEmail = await emailService.sendDestinationMobilePaymentEmail({
+                email: destinationEmail,
+                destinationName,
+                originName: originUserName,
+                amount,
+                fecha,
+                securityReference: securityRef,
+                hasAccount: false
+            });
+        }
 
         return {
             success: true,

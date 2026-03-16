@@ -670,6 +670,220 @@ class EmailService {
       return { originLogoUrl: '', destinationLogoUrl: '' };
     }
   }
+
+  /**
+   * Genera HTML para email de transferencia móvil enviada (origen)
+   */
+  generateOriginMobilePaymentHTML(data) {
+    const formattedAmount = parseFloat(data.amount).toFixed(2);
+    const formattedFee = data.feeValue ? parseFloat(data.feeValue).toFixed(2) : '0.00';
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transferencia enviada - PAYSAT</title>
+        <style>
+          .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { padding: 30px; background: #f8f9fa; }
+          .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
+          .amount { font-size: 36px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
+          .amount-label { font-size: 14px; color: #6B7280; text-align: center; margin-top: -15px; }
+          .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .footer { background: #374151; color: white; padding: 20px; text-align: center; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>💸 PAYSAT</h1>
+            <p>Transferencia enviada exitosamente</p>
+          </div>
+          <div class="content">
+            <div class="success-icon">✅</div>
+            <h2 style="text-align: center; color: #374151;">¡Transferencia enviada!</h2>
+            <p>Hola <strong>${data.originName || 'Usuario'}</strong>,</p>
+            <p>Tu transferencia ha sido procesada exitosamente.</p>
+            <div class="amount">$${formattedAmount} USD</div>
+            <div class="amount-label">Monto transferido</div>
+            <div class="details">
+              <h3>Detalles de la transferencia:</h3>
+              <p><strong>Destinatario:</strong> ${data.destinationName}</p>
+              ${data.destinationPhoneNumber ? `<p><strong>Teléfono destino:</strong> ${data.destinationPhoneNumber}</p>` : ''}
+              ${data.affiliateName ? `<p><strong>Desde:</strong> ${data.affiliateName}</p>` : '<p><strong>Desde:</strong> Cuenta PAYSAT</p>'}
+              <p><strong>Monto:</strong> $${formattedAmount} USD</p>
+              ${data.feeValue > 0 ? `<p><strong>Comisión:</strong> $${formattedFee} USD</p>` : ''}
+              <p><strong>Fecha:</strong> ${data.fecha}</p>
+              ${data.securityReference ? `<p><strong>Referencia:</strong> ${data.securityReference}</p>` : ''}
+              <p><strong>Estado:</strong> Completada ✅</p>
+            </div>
+            <p style="text-align: center; color: #6B7280;">Gracias por usar PAYSAT</p>
+          </div>
+          <div class="footer">
+            <p>Este es un email automático, por favor no respondas.</p>
+            <p>Si tienes dudas, contacta nuestro soporte: ${emailConfig.supportEmail}</p>
+            <p>&copy; 2026 PAYSAT. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Genera HTML para email de transferencia móvil recibida (destino)
+   */
+  generateDestinationMobilePaymentHTML(data) {
+    const formattedAmount = parseFloat(data.amount).toFixed(2);
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transferencia recibida - PAYSAT</title>
+        <style>
+          .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+          .header { background: #10B981; color: white; padding: 20px; text-align: center; }
+          .content { padding: 30px; background: #f8f9fa; }
+          .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
+          .amount { font-size: 36px; font-weight: bold; color: #10B981; text-align: center; margin: 20px 0; }
+          .amount-label { font-size: 14px; color: #6B7280; text-align: center; margin-top: -15px; }
+          .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .footer { background: #374151; color: white; padding: 20px; text-align: center; font-size: 12px; }
+          .cta { background: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>💰 PAYSAT</h1>
+            <p>Has recibido dinero</p>
+          </div>
+          <div class="content">
+            <div class="success-icon">🎉</div>
+            <h2 style="text-align: center; color: #374151;">¡Has recibido una transferencia!</h2>
+            <p>Hola <strong>${data.destinationName || 'Usuario'}</strong>,</p>
+            <p>Has recibido una transferencia exitosamente.</p>
+            <div class="amount">$${formattedAmount} USD</div>
+            <div class="amount-label">Monto recibido</div>
+            <div class="details">
+              <h3>Detalles de la transferencia:</h3>
+              <p><strong>Remitente:</strong> ${data.originName}</p>
+              <p><strong>Monto:</strong> $${formattedAmount} USD</p>
+              <p><strong>Fecha:</strong> ${data.fecha}</p>
+              ${data.securityReference ? `<p><strong>Referencia:</strong> ${data.securityReference}</p>` : ''}
+              <p><strong>Estado:</strong> ${data.hasAccount ? 'Acreditado en tu cuenta PAYSAT ✅' : 'Disponible para usar ✅'}</p>
+            </div>
+            ${!data.hasAccount ? `
+            <div style="background: #EEF2FF; padding: 18px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; color: #4F46E5; font-weight: bold;">💡 Aprovecha tu dinero al máximo</p>
+              <p style="margin: 10px 0 0 0; font-size: 14px;">Podrás usarlo con:</p>
+              <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px;">
+                <li>Cuenta PAYSAT</li>
+                <li>Pagos QR</li>
+                <li>Tarjeta VISA PAYSAT</li>
+              </ul>
+              <div style="text-align: center;">
+                <a href="https://play.google.com/store/apps/details?id=com.paysat.paysatapp" class="cta">Descargar app PAYSAT</a>
+              </div>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #6B7280; text-align: center;">Regístrate con el número telefónico donde recibiste esta transferencia</p>
+            </div>
+            ` : ''}
+            <p style="text-align: center; color: #6B7280;">Gracias por confiar en PAYSAT</p>
+          </div>
+          <div class="footer">
+            <p>Este es un email automático, por favor no respondas.</p>
+            <p>Si tienes dudas, contacta nuestro soporte: ${emailConfig.supportEmail}</p>
+            <p>&copy; 2026 PAYSAT. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Envía email de transferencia móvil al origen
+   */
+  async sendOriginMobilePaymentEmail(data) {
+    try {
+      const { email, originName, destinationName, amount, feeValue, fecha, affiliateName, securityReference, destinationPhoneNumber } = data;
+
+      if (!email) {
+        console.log('No se proporcionó email para el origen');
+        return { success: false, error: 'Email no proporcionado' };
+      }
+
+      const htmlContent = this.generateOriginMobilePaymentHTML({
+        originName,
+        destinationName,
+        amount,
+        feeValue,
+        fecha,
+        affiliateName,
+        securityReference,
+        destinationPhoneNumber
+      });
+
+      const mailOptions = {
+        from: emailConfig.from,
+        to: email,
+        subject: `Transferencia enviada - $${parseFloat(amount).toFixed(2)} USD - PAYSAT`,
+        html: htmlContent
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`✅ Email de transferencia enviada a ${email}: ${info.messageId}`);
+
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('Error enviando email de origen:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envía email de transferencia móvil al destino
+   */
+  async sendDestinationMobilePaymentEmail(data) {
+    try {
+      const { email, destinationName, originName, amount, fecha, securityReference, hasAccount } = data;
+
+      if (!email) {
+        console.log('No se proporcionó email para el destino');
+        return { success: false, error: 'Email no proporcionado' };
+      }
+
+      const htmlContent = this.generateDestinationMobilePaymentHTML({
+        destinationName,
+        originName,
+        amount,
+        fecha,
+        securityReference,
+        hasAccount
+      });
+
+      const mailOptions = {
+        from: emailConfig.from,
+        to: email,
+        subject: `Has recibido $${parseFloat(amount).toFixed(2)} USD - PAYSAT`,
+        html: htmlContent
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`✅ Email de transferencia recibida a ${email}: ${info.messageId}`);
+
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('Error enviando email de destino:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export const emailService = new EmailService();

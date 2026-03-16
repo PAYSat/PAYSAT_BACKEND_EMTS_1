@@ -75,15 +75,16 @@ class LinkedUserPhoneNumbersTransferController {
                 destinationFullPhoneNumber,
                 destinationShortPhoneNumber,
                 phoneCountryCode,
-                phoneCountryISO2
+                phoneCountryISO2,
+                destinationEmail
             } = req.body;
 
-            // Validar campos requeridos
+            // Validar campos requeridos (destinationEmail es opcional)
             if (!destinationUserName || !destinationFullPhoneNumber || !destinationShortPhoneNumber || 
                 !phoneCountryCode || !phoneCountryISO2) {
                 return res.status(400).json({
                     ok: false,
-                    message: 'Todos los campos son requeridos: destinationUserName, destinationFullPhoneNumber, destinationShortPhoneNumber, phoneCountryCode, phoneCountryISO2'
+                    message: 'Campos requeridos: destinationUserName, destinationFullPhoneNumber, destinationShortPhoneNumber, phoneCountryCode, phoneCountryISO2'
                 });
             }
 
@@ -118,6 +119,11 @@ class LinkedUserPhoneNumbersTransferController {
                 phoneCountryISO2,
                 registeredAt: new Date().toISOString()
             };
+
+            // Solo agregar destinationEmail si se proporciona
+            if (destinationEmail) {
+                newPhoneNumber.destinationEmail = destinationEmail.trim();
+            }
 
             const timestamp = admin.firestore.Timestamp.now();
 
