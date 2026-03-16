@@ -1,6 +1,6 @@
 import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
-import { sendSMS } from './sms_service.js';
+import { sendSMS, sendWhatsApp } from './sms_service.js';
 import { generateUniqueSecurityReference, saveSecurityReference } from './security_reference_service.js';
 
 /**
@@ -199,6 +199,7 @@ export async function notifyExternalToPaySatTransfer({
  */
 export async function notifyTransferToNonPaySatUser({
     originUID,
+    originUserName,
     amount,
     destinationName,
     destinationPhoneNumber,
@@ -264,7 +265,7 @@ export async function notifyTransferToNonPaySatUser({
         results.origin = await notifyUser(originUID, originPayload);
 
         // SMS al DESTINO (sin cuenta PaySat)
-        const smsBody = `PAYSAT: Recibiste $${amount.toFixed(2)} USD
+        const smsBody = `PAYSAT: Recibiste $${amount.toFixed(2)} USD de ${originUserName}.
         (Ref: ${securityRef}).
 Podrás usarlo con:
 + Cuenta PAYSAT
@@ -273,8 +274,36 @@ Podrás usarlo con:
 
 Instala la app y regístrate con este mismo número telefónico:
 https://play.google.com/store/apps/details?id=com.paysat.paysatapp`;
+//https://play.google.com/apps/internaltest/4700499689514076877`;
 
-        results.sms = await sendSMS(destinationPhoneNumber, smsBody);
+        // Intentar enviar por WhatsApp, si falla usar SMS como fallback
+        const whatsappResult = await sendWhatsApp(destinationPhoneNumber, amount.toFixed(2), originUserName, securityRef);
+        
+        if (!whatsappResult.success) {
+            console.log(`🔄 WhatsApp falló para ${destinationPhoneNumber} (Error ${whatsappResult.errorCode}): ${whatsappResult.error}`);
+            console.log(`🔄 Intentando envío por SMS como fallback...`);
+            
+            results.sms = await sendSMS(destinationPhoneNumber, smsBody);
+            results.smsMethod = 'SMS (WhatsApp fallback)';
+            
+            if (results.sms.success) {
+                console.log(`✅ SMS enviado exitosamente como fallback`);
+            } else {
+                console.error(`❌ Ambos métodos fallaron. WhatsApp: ${whatsappResult.error}, SMS: ${results.sms.error}`);
+            }
+        } else {
+            results.sms = whatsappResult;
+            results.smsMethod = 'WhatsApp';
+            console.log(`✅ WhatsApp enviado exitosamente`);
+        }
+
+        // if (whatsappResult.success) {
+        //     results.sms = whatsappResult;
+        //     results.smsMethod = 'WhatsApp';
+        //     console.log(`✅ WhatsApp enviado exitosamente`); 
+        // }else{
+        //     console.log(`🔄 WhatsApp falló para ${destinationPhoneNumber} (Error ${whatsappResult.errorCode}): ${whatsappResult.error}`);
+        // }
 
         return {
             success: true,
@@ -297,6 +326,7 @@ export async function sendMobileTransferNotifications(transferData) {
     try {
         const {
             originUID,
+            originUserName,
             destinationUID = null,
             destinationUserExists,
             amount,
@@ -321,6 +351,19 @@ export async function sendMobileTransferNotifications(transferData) {
                     amount,
                     destinationName,
                     originName,
+                    transactionUID,
+                    feeValue
+                });
+
+                // Aquí está - borrar después de pruebas
+                result = await notifyTransferToNonPaySatUser({
+                    originUID,
+                    originUserName,
+                    amount,
+                    destinationName,
+                    destinationPhoneNumber,
+                    isOriginPaySat,
+                    affiliateName,
                     transactionUID,
                     feeValue
                 });

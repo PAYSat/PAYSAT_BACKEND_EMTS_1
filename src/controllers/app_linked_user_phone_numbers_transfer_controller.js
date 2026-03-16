@@ -1248,6 +1248,7 @@ class LinkedUserPhoneNumbersTransferController {
             try {
                 const notificationData = {
                     originUID: uid,
+                    originUserName: originAccount.beneficiaryName,
                     destinationUID: destinationUID,
                     destinationUserExists: destinationUserExists,
                     amount: transferAmount,
