@@ -79,6 +79,16 @@ class LinkedUserPhoneNumbersTransferController {
                 destinationEmail
             } = req.body;
 
+            console.log('[saveDestinationPhoneNumbers] Datos recibidos:', {
+                uid,
+                destinationUserName,
+                destinationFullPhoneNumber,
+                destinationShortPhoneNumber,
+                phoneCountryCode,
+                phoneCountryISO2,
+                destinationEmail
+            });
+
             // Validar campos requeridos (destinationEmail es opcional)
             if (!destinationUserName || !destinationFullPhoneNumber || !destinationShortPhoneNumber || 
                 !phoneCountryCode || !phoneCountryISO2) {
@@ -92,36 +102,21 @@ class LinkedUserPhoneNumbersTransferController {
             const registeredPhoneNumbersRef = db.collection('PaySat_User_Registered_PhoneNumbers_Mobile').doc(uid);
             const registeredPhoneNumbersDoc = await registeredPhoneNumbersRef.get();
 
-            // Verificar si ya existe un número duplicado
-            if (registeredPhoneNumbersDoc.exists) {
-                const userData = registeredPhoneNumbersDoc.data();
-                const destinationPhoneNumbers = userData.destinationPhoneNumbers || [];
-
-                // Verificar si ya existe un número con el mismo destinationFullPhoneNumber
-                const duplicatePhoneNumber = destinationPhoneNumbers.find(phone => 
-                    phone.destinationFullPhoneNumber === destinationFullPhoneNumber
-                );
-
-                if (duplicatePhoneNumber) {
-                    return res.status(400).json({
-                        ok: false,
-                        message: 'Este número telefónico ya está registrado'
-                    });
-                }
-            }
+            // Normalizar el número telefónico para comparaciones
+            const normalizedPhoneNumber = destinationFullPhoneNumber.trim();
 
             // Preparar el objeto del número telefónico a guardar
             const newPhoneNumber = {
                 destinationUserName: destinationUserName.trim(),
-                destinationFullPhoneNumber,
-                destinationShortPhoneNumber,
-                phoneCountryCode,
-                phoneCountryISO2,
+                destinationFullPhoneNumber: normalizedPhoneNumber,
+                destinationShortPhoneNumber: destinationShortPhoneNumber.trim(),
+                phoneCountryCode: phoneCountryCode.trim(),
+                phoneCountryISO2: phoneCountryISO2.trim(),
                 registeredAt: new Date().toISOString()
             };
 
-            // Solo agregar destinationEmail si se proporciona
-            if (destinationEmail) {
+            // Solo agregar destinationEmail si se proporciona y no es null/undefined
+            if (destinationEmail && destinationEmail.trim()) {
                 newPhoneNumber.destinationEmail = destinationEmail.trim();
             }
 
@@ -129,18 +124,94 @@ class LinkedUserPhoneNumbersTransferController {
 
             // Si el documento no existe, crearlo con estructura completa
             if (!registeredPhoneNumbersDoc.exists) {
+                console.log('[saveDestinationPhoneNumbers] Creando nuevo documento');
                 await registeredPhoneNumbersRef.set({
                     paysatUID: uid,
                     createdAt: timestamp,
                     updatedAt: timestamp,
                     destinationPhoneNumbers: [newPhoneNumber]
                 });
+                
+                console.log('[saveDestinationPhoneNumbers] Documento creado exitosamente');
             } else {
-                // Si existe, agregar el nuevo número al array y actualizar updatedAt
+                // Si existe, obtener el array actual y validar duplicados
+                console.log('[saveDestinationPhoneNumbers] Actualizando documento existente');
+                
+                const userData = registeredPhoneNumbersDoc.data();
+                const destinationPhoneNumbers = userData.destinationPhoneNumbers || [];
+
+                console.log('[saveDestinationPhoneNumbers] Números existentes:', destinationPhoneNumbers.map(p => p.destinationFullPhoneNumber));
+                console.log('[saveDestinationPhoneNumbers] Número a guardar (normalizado):', normalizedPhoneNumber);
+
+                // Normalizar el email para comparaciones (puede ser null)
+                const normalizedEmail = newPhoneNumber.destinationEmail 
+                    ? newPhoneNumber.destinationEmail.toLowerCase().trim() 
+                    : null;
+
+                // VALIDACIÓN 1: Verificar si ya existe el mismo número telefónico
+                const duplicatePhoneIndex = destinationPhoneNumbers.findIndex(phone => 
+                    phone.destinationFullPhoneNumber.trim() === normalizedPhoneNumber
+                );
+
+                if (duplicatePhoneIndex !== -1) {
+                    console.log('[saveDestinationPhoneNumbers] Número telefónico duplicado detectado en índice:', duplicatePhoneIndex);
+                    return res.status(400).json({
+                        ok: false,
+                        message: 'Este número telefónico ya está registrado'
+                    });
+                }
+
+                // VALIDACIÓN 2: Verificar si ya existe el mismo email (solo si se proporcionó email)
+                if (normalizedEmail) {
+                    const duplicateEmailIndex = destinationPhoneNumbers.findIndex(phone => {
+                        if (!phone.destinationEmail) return false;
+                        return phone.destinationEmail.toLowerCase().trim() === normalizedEmail;
+                    });
+
+                    if (duplicateEmailIndex !== -1) {
+                        console.log('[saveDestinationPhoneNumbers] Email duplicado detectado en índice:', duplicateEmailIndex);
+                        return res.status(400).json({
+                            ok: false,
+                            message: 'Este correo electrónico ya está registrado para otro contacto'
+                        });
+                    }
+                }
+
+                // VALIDACIÓN 3: Verificar combinación número + email (redundante pero por seguridad)
+                const duplicateCombination = destinationPhoneNumbers.findIndex(phone => {
+                    const phoneMatch = phone.destinationFullPhoneNumber.trim() === normalizedPhoneNumber;
+                    
+                    if (!normalizedEmail && !phone.destinationEmail) {
+                        // Ambos sin email, solo comparar número (ya validado arriba)
+                        return phoneMatch;
+                    }
+                    
+                    if (normalizedEmail && phone.destinationEmail) {
+                        const emailMatch = phone.destinationEmail.toLowerCase().trim() === normalizedEmail;
+                        return phoneMatch && emailMatch;
+                    }
+                    
+                    return false;
+                });
+
+                if (duplicateCombination !== -1) {
+                    console.log('[saveDestinationPhoneNumbers] Combinación número+email duplicada en índice:', duplicateCombination);
+                    return res.status(400).json({
+                        ok: false,
+                        message: 'Esta combinación de número y correo ya está registrada'
+                    });
+                }
+
+                // Todas las validaciones pasaron, agregar el nuevo número al array
+                const updatedPhoneNumbers = [...destinationPhoneNumbers, newPhoneNumber];
+
+                // Actualizar el documento con el array modificado
                 await registeredPhoneNumbersRef.update({
-                    destinationPhoneNumbers: admin.firestore.FieldValue.arrayUnion(newPhoneNumber),
+                    destinationPhoneNumbers: updatedPhoneNumbers,
                     updatedAt: timestamp
                 });
+                
+                console.log('[saveDestinationPhoneNumbers] Documento actualizado exitosamente');
             }
 
             return res.status(200).json({
@@ -150,7 +221,8 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error al guardar número telefónico de destino:', error);
+            console.error('[saveDestinationPhoneNumbers] Error completo:', error);
+            console.error('[saveDestinationPhoneNumbers] Stack trace:', error.stack);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al guardar el número telefónico',

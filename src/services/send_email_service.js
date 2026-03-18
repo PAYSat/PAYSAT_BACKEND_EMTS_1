@@ -430,37 +430,182 @@ class EmailService {
     `;
   }
 
-   /**
- * Envía un correo de bienvenida al usuario que inicia sesión.
+  /**
+ * Envía un correo de bienvenida al usuario que inicia sesión por primera vez.
  * @param {Object} params
  * @param {string} params.firstName - Nombre del usuario
  * @param {string} params.email - Email del destinatario
  */
 
   async sendWelcomeEmail({ firstName, email }) {
-    let logoUrl = process.env.APP_LOGO_URL || '';
+    let logoUrl = process.env.APP_LOGO_URL || 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+
+    const currentDate = new Date().toLocaleString('es-ES', { 
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     const htmlContent = `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7fafc; padding: 32px; border-radius: 12px; max-width: 480px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.07);">
-        <div style="text-align: center; margin-bottom: 24px;">
-          ${logoUrl ? `<img src="${logoUrl}" alt="EcuaRed Transfer" style="width: 80px; height: 80px; border-radius: 16px; margin-bottom: 12px;" />` : ''}
-          <h2 style="color: #26A69A; margin-bottom: 8px;">¡Bienvenido, ${firstName}!</h2>
-          <p style="color: #444; font-size: 18px; margin: 0;">Te damos la bienvenida a <b>EcuaRed Transfer</b></p>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>¡Bienvenido a PAYSAT!</title>
+        <style>
+          .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+          .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; padding: 32px; text-align: center; border-radius: 12px 12px 0 0; }
+          .logo { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+          .content { padding: 32px; background: #f8f9fa; }
+          .welcome-icon { font-size: 64px; text-align: center; margin: 24px 0; }
+          .greeting { font-size: 28px; font-weight: bold; color: #1F2937; text-align: center; margin: 20px 0; }
+          .intro-text { font-size: 16px; color: #4B5563; text-align: center; line-height: 1.6; margin: 20px 0; }
+          .session-box { background: #E0E7FF; border-left: 4px solid #4F46E5; padding: 16px; border-radius: 8px; margin: 24px 0; text-align: center; }
+          .session-title { font-weight: bold; color: #312E81; margin-bottom: 8px; font-size: 15px; }
+          .session-text { color: #4338CA; font-size: 14px; }
+          .features-section { background: white; padding: 28px; border-radius: 12px; margin: 24px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+          .feature { display: flex; align-items: flex-start; margin-bottom: 16px; padding: 12px; background: #F9FAFB; border-radius: 8px; }
+          .feature-icon { font-size: 28px; margin-right: 12px; min-width: 35px; }
+          .feature-content { flex: 1; }
+          .feature-title { font-weight: bold; color: #1F2937; font-size: 15px; margin-bottom: 2px; }
+          .feature-desc { color: #6B7280; font-size: 13px; line-height: 1.4; }
+          .cta-section { text-align: center; margin: 24px 0; padding: 20px; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-radius: 12px; }
+          .button { background: #4F46E5; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.3); transition: background 0.3s; }
+          .button:hover { background: #4338CA; }
+          .info-box { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 24px 0; }
+          .info-box-title { font-weight: bold; color: #92400E; margin-bottom: 8px; font-size: 15px; }
+          .info-box-text { color: #78350F; font-size: 14px; line-height: 1.5; }
+          .footer { background: #1F2937; color: white; padding: 24px; text-align: center; font-size: 13px; border-radius: 0 0 12px 12px; }
+          .footer a { color: #60A5FA; text-decoration: none; }
+          .social-links { margin: 16px 0; }
+          .social-links a { display: inline-block; margin: 0 8px; color: #60A5FA; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="${logoUrl}" alt="PAYSAT" class="logo" />
+            <h1 style="margin: 0; font-size: 32px;">¡Bienvenido a PAYSAT!</h1>
+            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.95;">Has iniciado sesión exitosamente</p>
+          </div>
+          
+          <div class="content">
+            <div class="welcome-icon">👋</div>
+            
+            <div class="greeting">¡Hola ${firstName || 'Usuario'}!</div>
+            
+            <div class="intro-text">
+              Has iniciado sesión exitosamente en tu cuenta PAYSAT. Nos alegra verte de nuevo en nuestra plataforma bancaria digital.
+            </div>
+
+            <div class="session-box">
+              <div class="session-title">📅 Información de tu sesión</div>
+              <div class="session-text">
+                <strong>Fecha y hora de acceso:</strong><br/>
+                ${currentDate}
+              </div>
+            </div>
+
+            <div class="cta-section">
+              <h3 style="color: #4F46E5; margin-top: 0; margin-bottom: 8px;">Tu cuenta está lista</h3>
+              <p style="color: #6B7280; margin: 12px 0;">Accede a todas las funciones de PAYSAT desde tu aplicación</p>
+              <a href="https://paysatmoney.com" class="button">Ir a mi cuenta</a>
+            </div>
+
+            <div class="features-section">
+              <h3 style="color: #4F46E5; margin-top: 0; font-size: 18px; text-align: center; margin-bottom: 20px;">¿Qué puedes hacer ahora?</h3>
+              
+              <div class="feature">
+                <div class="feature-icon">💰</div>
+                <div class="feature-content">
+                  <div class="feature-title">Recargar tu cuenta</div>
+                  <div class="feature-desc">Agrega fondos de manera rápida y segura con múltiples métodos de pago.</div>
+                </div>
+              </div>
+
+              <div class="feature">
+                <div class="feature-icon">💳</div>
+                <div class="feature-content">
+                  <div class="feature-title">Gestionar tarjetas virtuales</div>
+                  <div class="feature-desc">Crea, activa o recarga tus tarjetas virtuales para compras online seguras.</div>
+                </div>
+              </div>
+
+              <div class="feature">
+                <div class="feature-icon">💸</div>
+                <div class="feature-content">
+                  <div class="feature-title">Enviar transferencias</div>
+                  <div class="feature-desc">Transfiere dinero al instante a otros usuarios PAYSAT y otras instituciones.</div>
+                </div>
+              </div>
+
+              <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div class="feature-content">
+                  <div class="feature-title">Consultar movimientos</div>
+                  <div class="feature-desc">Revisa tu historial de transacciones y saldos en tiempo real.</div>
+                </div>
+              </div>
+
+              <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <div class="feature-content">
+                  <div class="feature-title">Seguridad garantizada</div>
+                  <div class="feature-desc">Tu dinero protegido con tecnología de encriptación de nivel bancario.</div>
+                </div>
+              </div>
+
+              <div class="feature">
+                <div class="feature-icon">🌍</div>
+                <div class="feature-content">
+                  <div class="feature-title">Pagos sin fronteras</div>
+                  <div class="feature-desc">Realiza pagos internacionales y compras en cualquier moneda.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-box">
+              <div class="info-box-title">🛡️ Recomendaciones de seguridad:</div>
+              <div class="info-box-text">
+                • Nunca compartas tu contraseña ni códigos de verificación<br/>
+                • Verifica siempre que estés en el sitio oficial de PAYSAT<br/>
+                • Activa la autenticación de dos factores para mayor seguridad<br/>
+                • Si no reconoces este inicio de sesión, contacta inmediatamente a soporte
+              </div>
+            </div>
+
+            <p style="text-align: center; color: #6B7280; font-size: 14px; margin-top: 24px;">
+              ¿Necesitas ayuda? Nuestro equipo de soporte está disponible para asistirte en cualquier momento.
+            </p>
+          </div>
+          
+          <div class="footer">
+            <p style="margin: 0 0 12px 0; font-size: 15px;">Gracias por confiar en PAYSAT</p>
+            <div class="social-links">
+              <a href="https://paysatmoney.com">🌐 Web</a>
+              <a href="mailto:${emailConfig.supportEmail}">✉️ Soporte</a>
+            </div>
+            <p style="margin: 16px 0 8px 0; font-size: 12px; opacity: 0.8;">
+              Este es un email automático de notificación de inicio de sesión.
+            </p>
+            <p style="margin: 8px 0; font-size: 12px; opacity: 0.8;">
+              Si tienes preguntas o dudas, contacta nuestro soporte: <a href="mailto:${emailConfig.supportEmail}">${emailConfig.supportEmail}</a>
+            </p>
+            <p style="margin: 16px 0 0 0; font-size: 11px; opacity: 0.7;">&copy; 2025 PAYSAT. Todos los derechos reservados.</p>
+          </div>
         </div>
-        <div style="color: #555; font-size: 16px; line-height: 1.6;">
-          <p>¡Nos alegra tenerte con nosotros! Ahora puedes comenzar a gestionar tus transferencias de dinero en un solo lugar de manera sencilla y segura.</p>
-          <p>Si tienes alguna duda o necesitas ayuda, no dudes en contactarnos.</p>
-        </div>
-        <div style="margin-top: 32px; text-align: center;">
-          <span style="color: #aaa; font-size: 13px;">Equipo de EcuaRed Transfer</span>
-        </div>
-      </div>
+      </body>
+      </html>
     `;
 
     const mailOptions = {
       from: emailConfig.from,
       to: email,
-      subject: '¡Bienvenido a EcuaRed Transfer!',
+      subject: `¡Bienvenido de nuevo a ${emailConfig.company}! 👋`,
       html: htmlContent
     };
 

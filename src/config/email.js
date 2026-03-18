@@ -1,11 +1,21 @@
 // Configuración de Nodemailer para PAYSAT
 import nodemailer from 'nodemailer';
 
+// export const transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   auth: {
+//     user: process.env.EMAIL_USER,     // tu-email@gmail.com
+//     pass: process.env.EMAIL_PASSWORD  // contraseña de aplicación
+//   }
+// });
+
 export const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'mail.paysatmoney.com',
+  port: 465, // Usa 465 para SSL, o 587 para TLS
+  secure: true, // true para 465, false para 587
   auth: {
-    user: process.env.EMAIL_USER,     // tu-email@gmail.com
-    pass: process.env.EMAIL_PASSWORD  // contraseña de aplicación
+    user: process.env.EMAIL_USER,     // tu-email@tudominio.com
+    pass: process.env.EMAIL_PASSWORD  // contraseña de la cuenta
   }
 });
 
@@ -20,7 +30,7 @@ transporter.verify((error, success) => {
 
 // Configuración general de emails
 export const emailConfig = {
-  from: process.env.EMAIL_USER || 'noreply@paysat.com',
-  company: 'PAYSAT',
+  from: process.env.EMAIL_USER || 'noreply@paysatmoney.com',
+  company: process.env.COMPANY_NAME || 'PAYSAT MONEY LTD',
   supportEmail: process.env.SUPPORT_EMAIL || process.env.EMAIL_USER
 };

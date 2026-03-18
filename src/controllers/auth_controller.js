@@ -1,4 +1,5 @@
-import { admin } from '../config/firebase.js';
+import { admin, db } from '../config/firebase.js';
+import { emailService } from '../services/send_email_service.js';
 
 export const userProfile = async (req, res) => {
   try {
@@ -52,5 +53,100 @@ export const userProfile = async (req, res) => {
 
   } catch (e) {
     return res.status(500).json({ ok: false, message: 'Error /auth/userprofile', details: e.message });
+  }
+};
+
+export const sendWelcomeEmailToUser = async (req, res) => {
+  try {
+    let { firstName, email } = req.body;
+    
+    // Validaciones
+    if (!email) {
+      return res.status(400).json({
+        ok: false,
+        error: 'El campo "email" es requerido'
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Formato de email inválido'
+      });
+    }
+
+    console.log(`UID-MARCE:`, req.user.uid);
+
+
+    // Buscar usuario en la colección PaySat_Users
+    const usersRef = db.collection('PaySat_Users');
+    const snapshot = await usersRef.where('email', '==', email).limit(1).get();
+    
+    if (snapshot.empty) {
+      // Si no existe en PaySat_Users, buscar por UID
+      const snapshotByUid = await usersRef.where('uid', '==', req.user.uid).limit(1).get();
+      
+      if (snapshotByUid.empty) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Usuario no encontrado en la colección' 
+        });
+      }
+      
+      const userData = snapshotByUid.docs[0].data();
+      firstName = userData.firstName || userData.names || 'Usuario';
+      const result = await emailService.sendWelcomeEmail({ 
+        firstName: firstName || email?.split('@')[0] || 'Usuario',
+        email
+      });
+      
+      if (result.success) {
+        return res.status(200).json({
+          ok: true,
+          message: 'Email de bienvenida enviado exitosamente',
+          data: {
+            email,
+            sentAt: new Date().toISOString()
+          }
+        });
+      } else {
+        return res.status(500).json({
+          ok: false,
+          error: 'Error al enviar el email de bienvenida',
+          details: result.error?.message || result.error
+        });
+      }
+    }
+
+    const userData = snapshot.docs[0].data();
+    firstName = userData.firstName || userData.names || 'Usuario';
+    const result = await emailService.sendWelcomeEmail({ firstName, email});
+    
+    if (result.success) {
+      return res.status(200).json({
+        ok: true,
+        message: 'Email de bienvenida enviado exitosamente',
+        data: {
+          email,
+          sentAt: new Date().toISOString()
+        }
+      });
+    } else {
+      return res.status(500).json({
+        ok: false,
+        error: 'Error al enviar el email de bienvenida',
+        details: result.error?.message || result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Error en endpoint send-welcome-email:', error);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error interno del servidor',
+      details: error.message
+    });
   }
 };

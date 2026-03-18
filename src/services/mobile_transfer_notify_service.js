@@ -1,6 +1,6 @@
 import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
-import { sendSMS, sendWhatsApp } from './sms_service.js';
+import { sendWhatsApp } from './sms_service.js';
 import { generateUniqueSecurityReference, saveSecurityReference } from './security_reference_service.js';
 import { emailService } from './send_email_service.js';
 
@@ -23,22 +23,30 @@ async function getUserEmail(uid) {
 
 /**
  * Obtiene el email de un usuario sin cuenta PaySat (registrado por teléfono)
+ * Busca en el documento del usuario origen (originUID) dentro de destinationPhoneNumbers
  */
-async function getEmailByPhoneNumber(phoneNumber) {
+async function getEmailByPhoneNumber(originUID, phoneNumber) {
     try {
-        const snapshot = await db.collection('PaySat_User_Registered_PhoneNumbers_Mobile')
-            .where('destinationFullPhoneNumber', '==', phoneNumber)
-            .limit(1)
+        const doc = await db.collection('PaySat_User_Registered_PhoneNumbers_Mobile')
+            .doc(originUID)
             .get();
         
-        if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
+        if (doc.exists) {
             const data = doc.data();
-            return data.destinationEmail || null;
+            const destinationPhoneNumbers = data.destinationPhoneNumbers || [];
+            
+            // Buscar el número telefónico en el array
+            const phoneData = destinationPhoneNumbers.find(
+                phone => phone.destinationFullPhoneNumber === phoneNumber
+            );
+            
+            if (phoneData && phoneData.destinationEmail) {
+                return phoneData.destinationEmail;
+            }
         }
         return null;
     } catch (error) {
-        console.error(`Error obteniendo email para teléfono ${phoneNumber}:`, error);
+        console.error(`Error obteniendo email para teléfono ${phoneNumber} en documento ${originUID}:`, error);
         return null;
     }
 }
@@ -364,38 +372,16 @@ export async function notifyTransferToNonPaySatUser({
 
         results.origin = await notifyUser(originUID, originPayload);
 
-        // SMS al DESTINO (sin cuenta PaySat)
-        const smsBody = `PAYSAT: Recibiste $${amount.toFixed(2)} USD de ${originUserName}.
-        (Ref: ${securityRef}).
-Podrás usarlo con:
-+ Cuenta PAYSAT
-+ Pagos QR 
-+ Tarjeta VISA PAYSAT.
-
-Instala la app y regístrate con este mismo número telefónico:
-https://play.google.com/store/apps/details?id=com.paysat.paysatapp`;
-//https://play.google.com/apps/internaltest/4700499689514076877`;
-
-        // Intentar enviar por WhatsApp, si falla usar SMS como fallback
-        const whatsappResult = await sendWhatsApp(destinationPhoneNumber, amount.toFixed(2), originUserName, securityRef);
+        // Enviar WhatsApp al DESTINO (sin cuenta PaySat)
+        // const whatsappResult = await sendWhatsApp(destinationPhoneNumber, amount.toFixed(2), originUserName, securityRef);
         
-        if (!whatsappResult.success) {
-            console.log(`🔄 WhatsApp falló para ${destinationPhoneNumber} (Error ${whatsappResult.errorCode}): ${whatsappResult.error}`);
-            console.log(`🔄 Intentando envío por SMS como fallback...`);
-            
-            results.sms = await sendSMS(destinationPhoneNumber, smsBody);
-            results.smsMethod = 'SMS (WhatsApp fallback)';
-            
-            if (results.sms.success) {
-                console.log(`✅ SMS enviado exitosamente como fallback`);
-            } else {
-                console.error(`❌ Ambos métodos fallaron. WhatsApp: ${whatsappResult.error}, SMS: ${results.sms.error}`);
-            }
-        } else {
-            results.sms = whatsappResult;
-            results.smsMethod = 'WhatsApp';
-            console.log(`✅ WhatsApp enviado exitosamente`);
-        }
+        // if (whatsappResult.success) {
+        //     results.whatsapp = whatsappResult;
+        //     console.log(`✅ WhatsApp enviado exitosamente a ${destinationPhoneNumber}`);
+        // } else {
+        //     results.whatsapp = whatsappResult;
+        //     console.log(`⚠️ WhatsApp falló para ${destinationPhoneNumber} (Error ${whatsappResult.errorCode}): ${whatsappResult.error}`);
+        // }
 
         // Enviar emails
         const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
@@ -416,8 +402,8 @@ https://play.google.com/store/apps/details?id=com.paysat.paysatapp`;
             });
         }
 
-        // Email al destino (usuario sin cuenta PaySat)
-        const destinationEmail = await getEmailByPhoneNumber(destinationPhoneNumber);
+        // Email al destino (usuario sin cuenta PaySat) - buscar en el registro del usuario origen
+        const destinationEmail = await getEmailByPhoneNumber(originUID, destinationPhoneNumber);
         if (destinationEmail) {
             results.destinationEmail = await emailService.sendDestinationMobilePaymentEmail({
                 email: destinationEmail,
@@ -428,6 +414,9 @@ https://play.google.com/store/apps/details?id=com.paysat.paysatapp`;
                 securityReference: securityRef,
                 hasAccount: false
             });
+            console.log(`✅ Email enviado exitosamente a ${destinationEmail}`);
+        } else {
+            console.log(`⚠️ No se encontró email registrado para el número ${destinationPhoneNumber} en los contactos del usuario`);
         }
 
         return {
@@ -481,17 +470,17 @@ export async function sendMobileTransferNotifications(transferData) {
                 });
 
                 // Aquí está - borrar después de pruebas
-                result = await notifyTransferToNonPaySatUser({
-                    originUID,
-                    originUserName,
-                    amount,
-                    destinationName,
-                    destinationPhoneNumber,
-                    isOriginPaySat,
-                    affiliateName,
-                    transactionUID,
-                    feeValue
-                });
+                // result = await notifyTransferToNonPaySatUser({
+                //     originUID,
+                //     originUserName,
+                //     amount,
+                //     destinationName,
+                //     destinationPhoneNumber,
+                //     isOriginPaySat,
+                //     affiliateName,
+                //     transactionUID,
+                //     feeValue
+                // });
             } else {
                 // CASO 2: Externa -> PaySat
                 result = await notifyExternalToPaySatTransfer({
@@ -509,6 +498,7 @@ export async function sendMobileTransferNotifications(transferData) {
             // CASO 3: Destino NO tiene cuenta PaySat
             result = await notifyTransferToNonPaySatUser({
                 originUID,
+                originUserName,
                 amount,
                 destinationName,
                 destinationPhoneNumber,

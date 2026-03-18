@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { userProfile } from '../controllers/auth_controller.js';
+import { userProfile, sendWelcomeEmailToUser } from '../controllers/auth_controller.js';
 import AppAccountCardPaysatTransactionsController from '../controllers/app_account_and_card_paysat_transactions_controller.js';
 import { db } from '../config/firebase.js';
 import { emailService } from '../services/send_email_service.js';
 import { v4 as uuidv4 } from 'uuid';
+import { authFirebaseRequired } from '../middlewares/auth-firebase.js';
 // import { requireRole } from '../middlewares/roles.js';
 
 const router = Router();
@@ -11,6 +12,12 @@ const appAccountCardPaysatTransactionsController = new AppAccountCardPaysatTrans
 
 // Función helper para convertir a centavos
 const toCents = (amount) => Math.round(parseFloat(parseFloat(amount).toFixed(2)) * 100);
+
+/**
+ * Controlador para enviar email de bienvenida
+ * Requiere autenticación con bearer token
+ */
+router.post('/send-welcome-email', sendWelcomeEmailToUser);
 
 router.get('/userprofile', userProfile);
 
