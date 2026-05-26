@@ -25,6 +25,10 @@ router.get('/account/details/:paysatUID', appAccountCardPaysatTransactionsContro
 
 router.get('/account/transactions/history/:paysatUID', appAccountCardPaysatTransactionsController.accountTransactionsHistory);
 
+router.post('/account/transactions/history/per-month', appAccountCardPaysatTransactionsController.accountTransactionsHistoryPerMonth);
+
+router.get('/account/transactions/history/last-four/:paysatUID', appAccountCardPaysatTransactionsController.accountTransactionsHistoryLastFour);
+
 router.get('/account/transactions/balance/:paysatUID', appAccountCardPaysatTransactionsController.accountTransactionsBalance);
 
 router.get('/cards/transactions/history/:paysatUID', appAccountCardPaysatTransactionsController.cardTransactionsHistory);
