@@ -338,14 +338,55 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         console.log('👤 Usuario:', paysatUID);
         console.log('🔄 Recharge ID:', rechargeId || 'N/A');
 
-        // Verificar si el charge ya fue procesado verificando si el movimiento existe
+        // 🔒 PROTECCIÓN ATÓMICA CONTRA DUPLICADOS: Usar transacción de Firestore
+        const sessionRef = db.collection('Stripe_Payments_Sessions').doc(sessionId);
+        
+        try {
+          const canProcess = await db.runTransaction(async (transaction) => {
+            const sessionSnapshot = await transaction.get(sessionRef);
+            
+            if (!sessionSnapshot.exists) {
+              throw new Error('Sesión no encontrada en transacción');
+            }
+            
+            const currentData = sessionSnapshot.data();
+            
+            // Si ya fue procesado, rechazar
+            if (currentData.charge_processed === true) {
+              console.log('✅ Charge ya procesado según transacción atómica');
+              return false;
+            }
+            
+            // Marcar como procesado atómicamente
+            transaction.update(sessionRef, {
+              charge_processed: true,
+              charge_processed_at: new Date(),
+              charge_id: charge.id,
+              updated_at: new Date()
+            });
+            
+            console.log('🔒 Transacción atómica: Sesión marcada como charge_processed');
+            return true;
+          });
+          
+          // Si la transacción devolvió false, significa que ya fue procesado
+          if (!canProcess) {
+            return res.json({ received: true, status: 'charge_already_processed_atomic' });
+          }
+          
+        } catch (transactionError) {
+          console.error('❌ Error en transacción atómica:', transactionError);
+          return res.json({ received: true, status: 'transaction_error', error: transactionError.message });
+        }
+
+        // Verificación adicional: si el movimiento ya existe en el usuario
         const { movementExists } = await import('../services/movements_service.js');
         const chargeMovementId = `recharge_${charge.id}`;
         const alreadyProcessed = await movementExists(paysatUID, chargeMovementId);
         
         if (alreadyProcessed) {
           console.log('✅ Charge ya procesado previamente (movimiento existe en usuario)');
-          return res.json({ received: true, status: 'already_processed' });
+          return res.json({ received: true, status: 'already_processed_movement' });
         }
 
         console.log('🔄 Procesando charge por primera vez...');

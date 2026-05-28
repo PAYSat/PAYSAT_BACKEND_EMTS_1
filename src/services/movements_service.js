@@ -302,35 +302,7 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     const paysatMainEmail = process.env.PAYSAT_MAIN_ACCOUNT_EMAIL;
     const paysatMainNumber = process.env.PAYSAT_MAIN_ACCOUNT_NUMBER;
     
-    //
-      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
-      try {
-        // Obtener el balance actualizado
-        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatMainUID);
-        const userMovementsDoc = await userMovementsRef.get();
-        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : balanceChange;
-        
-        await recordDepositEntry({
-          user_account: paysatMainUID,
-          amount: parseFloat(PAYSAT_FEE_AMOUNT),
-          currency: 'USD',
-          balance_after: currentBalance,
-          description: `PaySat Fee Collection - ${movementId}`,
-          meta: {
-            balance_transaction_id: balanceTransactionId,
-            source: 'paysat_fee_collection',
-            movement_id: movementId,
-            account_number: paysatMainNumber,
-            account_email: paysatMainEmail,
-            deposit_type: 'fee_collection'
-          }
-        });
-        console.log('✅ Depósito PaySat registrado en PaySat_Ledger:', movementId);
-      } catch (ledgerError) {
-        console.error('⚠️ Error registrando depósito PaySat en PaySat_Ledger:', ledgerError);
-      }
-      
-      // Validar que existan las variables de entorno
+    // Validar que existan las variables de entorno
     if (!paysatMainUID || !paysatMainEmail || !paysatMainNumber) {
       throw new Error('Variables de entorno PAYSAT_MAIN_ACCOUNT no configuradas correctamente');
     }
@@ -364,6 +336,33 @@ async function createPaySatDepositMovement(balanceTransactionId) {
     const result = await addMovementToUser(paysatMainUID, depositMovement, balanceChange);
     
     if (result.success) {
+      // ✅ Registrar en PaySat_Ledger (nuevo ledger unificado)
+      try {
+        // Obtener el balance actualizado
+        const userMovementsRef = db.collection('Banco_PaySat_Money').doc(paysatMainUID);
+        const userMovementsDoc = await userMovementsRef.get();
+        const currentBalance = userMovementsDoc.exists ? (userMovementsDoc.data().customerBalance || 0) : balanceChange;
+        
+        await recordDepositEntry({
+          user_account: paysatMainUID,
+          amount: parseFloat(PAYSAT_FEE_AMOUNT),
+          currency: 'USD',
+          balance_after: currentBalance,
+          description: `PaySat Fee Collection - ${movementId}`,
+          meta: {
+            balance_transaction_id: balanceTransactionId,
+            source: 'paysat_fee_collection',
+            movement_id: movementId,
+            account_number: paysatMainNumber,
+            account_email: paysatMainEmail,
+            deposit_type: 'fee_collection'
+          }
+        });
+        console.log('✅ Depósito PaySat registrado en PaySat_Ledger:', movementId);
+      } catch (ledgerError) {
+        console.error('⚠️ Error registrando depósito PaySat en PaySat_Ledger:', ledgerError);
+      }
+      
       console.log('✅ Depósito PaySat creado:', movementId);
       return { success: true, documentId: movementId, data: depositMovement };
     } else {
