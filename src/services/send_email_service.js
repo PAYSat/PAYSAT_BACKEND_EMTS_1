@@ -437,8 +437,8 @@ class EmailService {
  * @param {string} params.email - Email del destinatario
  */
 
-  async sendWelcomeEmail({ firstName, email }) {
-    let logoUrl = process.env.APP_LOGO_URL || 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+  async sendWelcomeEmail({ firstName, email, loginMethod }) {
+    let logoUrl = process.env.APP_LOGO_URL || 'https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Flogos%2Ficon_letras_x480.jpg?alt=media&token=3bd6afbf-23e3-427d-8fd0-15db51e1a203';
 
     const currentDate = new Date().toLocaleString('es-ES', { 
       timeZone: 'America/Guayaquil',
@@ -483,6 +483,7 @@ class EmailService {
           .footer a { color: #60A5FA; text-decoration: none; }
           .social-links { margin: 16px 0; }
           .social-links a { display: inline-block; margin: 0 8px; color: #60A5FA; }
+          .margin-top-text { margin-top: 16px; }
         </style>
       </head>
       <body>
@@ -507,6 +508,10 @@ class EmailService {
               <div class="session-text">
                 <strong>Fecha y hora de acceso:</strong><br/>
                 ${currentDate}
+              </div>
+              <div class="session-text margin-top-text">
+                <strong>Método de inicio de sesión:</strong><br/>
+                ${loginMethod}
               </div>
             </div>
 

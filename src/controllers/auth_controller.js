@@ -58,7 +58,7 @@ export const userProfile = async (req, res) => {
 
 export const sendWelcomeEmailToUser = async (req, res) => {
   try {
-    let { firstName, email } = req.body;
+    let { firstName, email, loginMethod } = req.body;    
     
     // Validaciones
     if (!email) {
@@ -77,7 +77,7 @@ export const sendWelcomeEmailToUser = async (req, res) => {
       });
     }
 
-    console.log(`UID-MARCE:`, req.user.uid);
+    // console.log(`UID-MARCE:`, req.user.uid);
 
 
     // Buscar usuario en la colección PaySat_Users
@@ -99,7 +99,8 @@ export const sendWelcomeEmailToUser = async (req, res) => {
       firstName = userData.firstName || userData.names || 'Usuario';
       const result = await emailService.sendWelcomeEmail({ 
         firstName: firstName || email?.split('@')[0] || 'Usuario',
-        email
+        email,
+        loginMethod // Puedes usar esta info para personalizar el email según el método de login
       });
       
       if (result.success) {
@@ -108,6 +109,7 @@ export const sendWelcomeEmailToUser = async (req, res) => {
           message: 'Email de bienvenida enviado exitosamente',
           data: {
             email,
+            loginMethod,
             sentAt: new Date().toISOString()
           }
         });
@@ -122,7 +124,7 @@ export const sendWelcomeEmailToUser = async (req, res) => {
 
     const userData = snapshot.docs[0].data();
     firstName = userData.firstName || userData.names || 'Usuario';
-    const result = await emailService.sendWelcomeEmail({ firstName, email});
+    const result = await emailService.sendWelcomeEmail({ firstName, email, loginMethod });
     
     if (result.success) {
       return res.status(200).json({
@@ -130,6 +132,7 @@ export const sendWelcomeEmailToUser = async (req, res) => {
         message: 'Email de bienvenida enviado exitosamente',
         data: {
           email,
+          loginMethod,
           sentAt: new Date().toISOString()
         }
       });
