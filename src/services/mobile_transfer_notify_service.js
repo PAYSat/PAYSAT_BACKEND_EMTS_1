@@ -96,6 +96,42 @@ async function notifyUser(uid, payload) {
 
         console.log(`Notificación enviada a ${uid}: ${res.successCount} exitosas, ${res.failureCount} fallidas`);
 
+        // Limpiar tokens inválidos automáticamente
+        if (res.failureCount > 0 && res.responses) {
+            const tokensToClean = [];
+            res.responses.forEach((response, index) => {
+                if (!response.success) {
+                    const errorCode = response.error?.code;
+                    // Eliminar tokens que ya no están registrados o son inválidos
+                    if (errorCode === 'messaging/registration-token-not-registered' ||
+                        errorCode === 'messaging/invalid-registration-token') {
+                        tokensToClean.push(tokens[index]);
+                    }
+                }
+            });
+
+            if (tokensToClean.length > 0) {
+                console.log(`🧹 Limpiando ${tokensToClean.length} tokens inválidos para ${uid}...`);
+                
+                // Eliminar tokens inválidos de la base de datos
+                const batch = db.batch();
+                for (const token of tokensToClean) {
+                    const invalidTokenDocs = await db.collection('PaySat_User_FCM_Tokens')
+                        .where('token', '==', token)
+                        .where('uid', '==', uid)
+                        .limit(1)
+                        .get();
+                    
+                    invalidTokenDocs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                }
+                
+                await batch.commit();
+                console.log(`✅ Tokens inválidos eliminados para ${uid}`);
+            }
+        }
+
         return { ok: true, sent: res.successCount, failed: res.failureCount };
     } catch (error) {
         console.error(`Error enviando notificación a ${uid}:`, error);
@@ -138,6 +174,7 @@ export async function notifyPaySatToPaySatTransfer({
             }
         };
 
+        console.log(`[notifyPaySatToPaySatTransfer] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
 
         // Notificación al DESTINO
@@ -156,6 +193,7 @@ export async function notifyPaySatToPaySatTransfer({
             }
         };
 
+        console.log(`[notifyPaySatToPaySatTransfer] Enviando notificación de RECEPCIÓN a destinationUID: ${destinationUID}`);
         results.destination = await notifyUser(destinationUID, destinationPayload);
 
         // Enviar emails
@@ -238,6 +276,7 @@ export async function notifyExternalToPaySatTransfer({
             }
         };
 
+        console.log(`[notifyExternalToPaySatTransfer] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
 
         // Notificación al DESTINO (igual que el caso anterior)
@@ -256,6 +295,7 @@ export async function notifyExternalToPaySatTransfer({
             }
         };
 
+        console.log(`[notifyExternalToPaySatTransfer] Enviando notificación de RECEPCIÓN a destinationUID: ${destinationUID}`);
         results.destination = await notifyUser(destinationUID, destinationPayload);
 
         // Enviar emails
@@ -370,6 +410,7 @@ export async function notifyTransferToNonPaySatUser({
             }
         };
 
+        console.log(`[notifyTransferToNonPaySatUser] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
 
         // Enviar WhatsApp al DESTINO (sin cuenta PaySat)
@@ -468,19 +509,6 @@ export async function sendMobileTransferNotifications(transferData) {
                     transactionUID,
                     feeValue
                 });
-
-                // Aquí está - borrar después de pruebas
-                // result = await notifyTransferToNonPaySatUser({
-                //     originUID,
-                //     originUserName,
-                //     amount,
-                //     destinationName,
-                //     destinationPhoneNumber,
-                //     isOriginPaySat,
-                //     affiliateName,
-                //     transactionUID,
-                //     feeValue
-                // });
             } else {
                 // CASO 2: Externa -> PaySat
                 result = await notifyExternalToPaySatTransfer({

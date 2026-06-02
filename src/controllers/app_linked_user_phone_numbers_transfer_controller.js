@@ -1324,6 +1324,8 @@ class LinkedUserPhoneNumbersTransferController {
 
             // 14. ENVIAR NOTIFICACIONES PUSH Y SMS
             try {
+                console.log(`[sendTransferToPhoneNumber] Preparando notificaciones - OriginUID: ${uid}, DestinationUID: ${destinationUID}, DestinationExists: ${destinationUserExists}`);
+                
                 const notificationData = {
                     originUID: uid,
                     originUserName: originAccount.beneficiaryName,
