@@ -948,12 +948,9 @@ class AppAccountAndCardPaysatTransactionsController {
         let { paysatUID } = req.params;
 
         try {
-            // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
-
             // Limpiar el paysatUID de caracteres no deseados al inicio
             if (paysatUID.startsWith(':')) {
             paysatUID = paysatUID.substring(1);
-            //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
             }
 
             // Validar que paysatUID no esté vacío después de la limpieza
@@ -964,103 +961,108 @@ class AppAccountAndCardPaysatTransactionsController {
             });
             }
 
-            // Obtener los movimientos del usuario desde PaySat_Card_Movements
-            const cardMovementsSnapshot = await db.collection('PaySat_Card_Movements')
-            .where('paysatUID', '==', paysatUID)
+            // Obtener el documento de movimientos del usuario (nueva estructura)
+            const userMovementsDoc = await db.collection('Banco_PaySat_Money')
+            .doc(paysatUID)
             .get();
 
-            console.log('📊 Movimientos de tarjeta encontrados:', cardMovementsSnapshot.size);
-
-            if (cardMovementsSnapshot.empty) {
+            if (!userMovementsDoc.exists) {
+            console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
             return res.json({
                 ok: true,
                 saldo: 0.00,
                 data: [],
-                message: 'No se encontraron movimientos de tarjeta para este usuario'
+                message: 'No se encontraron movimientos para este usuario'
             });
             }
 
-            // Procesar los movimientos y calcular el saldo
-            let saldoTotal = 0.00;
-            const transacciones = [];
+            const userData = userMovementsDoc.data();
+            const movements = userData.customerMovements || [];
+            const balance = userData.customerBalance || 0;
 
-            cardMovementsSnapshot.forEach(doc => {
-            const data = doc.data();
-            const typeMovement = data.typeMovement;
-            const monto = parseFloat(data.amount) || 0.00;
-            
-            // Calcular saldo según el tipo de movimiento
-            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
-                saldoTotal += monto; // Sumar depósitos, recargas y transferencias recibidas
-            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
-                saldoTotal -= monto; // Restar compras y transferencias enviadas
-            } else if (typeMovement === 'fee') {
-                saldoTotal -= parseFloat(data.totalFee);        // Restar comisiones
+            console.log('📊 Movimientos encontrados:', movements.length);
+
+            if (movements.length === 0) {
+            return res.json({
+                ok: true,
+                saldo: balance,
+                data: [],
+                message: 'No se encontraron movimientos para este usuario'
+            });
             }
 
-            transacciones.push({
-                id: doc.id,
+            // Procesar los movimientos para la respuesta
+            const transacciones = movements.map(mov => {
+            const typeMovement = mov.typeMovement;
+            
+            return {
+                id: mov.id,
                 typeMovement: typeMovement,
-                amount: monto,
-                amount_cents: data.amount_cents || Math.round(monto * 100),
-                currency: data.currency || 'USD',
+                amount: mov.amount,
+                amount_cents: mov.amount_cents,
+                currency: mov.currency || 'USD',
                 
                 // Campos específicos según el tipo de movimiento
                 ...(typeMovement === 'recharge' && {
-                payment_intent_id: data.payment_intent_id || null,
-                recharge_id: data.recharge_id || null,
-                status: data.status || null
+                payment_intent_id: mov.payment_intent_id || null,
+                recharge_id: mov.recharge_id || null,
+                charge_id: mov.charge_id || null,
+                userEmail: mov.userEmail || null,
+                userName: mov.userName || null,
+                description: mov.description || null,
+                status: mov.status || null
                 }),
                 
                 ...(typeMovement === 'fee' && {
-                paysatFee: data.paysatFee || null,
-                paysatFee_cents: data.paysatFee_cents || null,
-                totalFee: data.totalFee || null,
-                net: data.net || null,
-                balanceTransactionId: data.balanceTransactionId || null
+                paysatFee: mov.paysatFee || null,
+                paysatFee_cents: mov.paysatFee_cents || null,
+                totalFee: mov.totalFee || null,
+                net: mov.net || null,
+                balanceTransactionId: mov.balanceTransactionId || null
                 }),
                 
                 ...(typeMovement === 'deposit' && {
-                from: data.from || null,
-                description: data.description || null,
-                email: data.email || null
+                from: mov.from || null,
+                description: mov.description || null,
+                email: mov.email || null,
+                userName: mov.userName || null
                 }),
 
                 ...(typeMovement === 'buy' && {
-                from: data.from || null,
-                description: data.description || null,
-                email: data.email || null
+                from: mov.from || null,
+                description: mov.description || null,
+                email: mov.email || null
                 }),
 
                 ...(typeMovement === 'transfer_sent' && {
-                originUID: data.originUID || null,
-                destinationUID: data.destinationUID || null,
-                userName: data.userName || null,
-                reason: data.reason || null,
-                fee: data.fee || null,
-                total: data.total || null,
-                feePercentage: data.feePercentage || null,
-                status: data.status || null
+                originUID: mov.originUID || null,
+                destinationUID: mov.destinationUID || null,
+                userName: mov.userName || null,
+                reason: mov.reason || null,
+                fee: mov.fee || null,
+                total: mov.total || null,
+                feePercentage: mov.feePercentage || null,
+                status: mov.status || null
                 }),
 
                 ...(typeMovement === 'transfer_received' && {
-                originUID: data.originUID || null,
-                destinationUID: data.destinationUID || null,
-                userName: data.userName || null,
-                reason: data.reason || null,
-                status: data.status || null
+                originUID: mov.originUID || null,
+                destinationUID: mov.destinationUID || null,
+                userName: mov.userName || null,
+                reason: mov.reason || null,
+                status: mov.status || null
                 }),
                 
-                PAYSATAccountNumber: data.PAYSATAccountNumber || null,
+                PAYSATAccountNumber: mov.PAYSATAccountNumber || null,
                 
-                // Usar la fecha específica del movimiento (priorizar createdAt, luego updatedAt como fallback)
-                createdAt: data.createdAt ? data.createdAt : (data.updatedAt || new Date()),
+                // Usar la fecha específica del movimiento
+                createdAt: mov.createdAt || mov.updatedAt || new Date(),
                 
                 // Incluir también updatedAt si existe para referencia
-                ...(data.updatedAt && { updatedAt: data.updatedAt }),
+                ...(mov.updatedAt && { updatedAt: mov.updatedAt }),
                 
-                source: data.source || null
-            });
+                source: mov.source || null
+            };
             });
 
             // Ordenar transacciones por fecha y hora (más recientes primero - descendente)
@@ -1096,22 +1098,22 @@ class AppAccountAndCardPaysatTransactionsController {
             return timeB - timeA;
             });
 
-            // Calcular balanceAfter para cada transacción de tarjeta (en orden cronológico inverso)
+            // Calcular balanceAfter para cada transacción (en orden cronológico inverso)
             let balanceAcumulado = 0.00;
             
             // Primero ordenamos cronológicamente (ascendente) para calcular balances
             const transaccionesOrdenCronologico = [...transacciones].reverse();
             
-            // Calcular balance acumulativo para transacciones de tarjeta
+            // Calcular balance acumulativo
             transaccionesOrdenCronologico.forEach(tx => {
             const monto = tx.amount;
             const typeMovement = tx.typeMovement;
             
-            // Aplicar el movimiento al balance de la tarjeta
+            // Aplicar el movimiento al balance
             // Todos los amounts vienen positivos, el typeMovement determina si suma o resta
             if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received' || typeMovement === 'mobile_transfer_received' || typeMovement === 'external_transfer_in') {
                 balanceAcumulado += monto;
-            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent' || typeMovement === 'mobile_transfer_sent' || typeMovement === 'external_transfer_out') {
+            } else if (typeMovement === 'buy' || typeMovement === 'recharge_card' || typeMovement === 'transfer_sent' || typeMovement === 'mobile_transfer_sent' || typeMovement === 'external_transfer_out') {
                 balanceAcumulado -= monto;
             } else if (typeMovement === 'fee') {
                 balanceAcumulado -= (tx.totalFee || tx.amount || 0);
@@ -1121,10 +1123,7 @@ class AppAccountAndCardPaysatTransactionsController {
             tx.balanceAfter = parseFloat(balanceAcumulado.toFixed(2));
             });
 
-            // Redondear saldo a 2 decimales
-            saldoTotal = parseFloat(saldoTotal.toFixed(2));
-
-            console.log(`✅ Procesados ${transacciones.length} movimientos de tarjeta, saldo total: $${saldoTotal}`);
+            console.log(`✅ Procesados ${transacciones.length} movimientos, saldo total: $${balance}`);
             
             // Mostrar rango de fechas con manejo correcto de Timestamps
             if (transacciones.length > 0) {
@@ -1147,24 +1146,24 @@ class AppAccountAndCardPaysatTransactionsController {
             }
             
             console.log(`📅 Rango de fechas: desde ${fechaAntiguaStr} hasta ${fechaRecienteStr}`);
-            console.log(`💳 Balance inicial de tarjeta: $0.00, Balance final: $${saldoTotal}`);
+            console.log(`💳 Balance final: $${balance}`);
             } else {
             console.log('📅 Rango de fechas: sin movimientos');
             }
 
             res.json({
             ok: true,
-            saldo: saldoTotal,
+            saldo: balance,
             data: transacciones,
             summary: {
                 total_transactions: transacciones.length,
-                total_sessions_found: cardMovementsSnapshot.size,
+                total_movements_found: movements.length,
                 currency: 'USD'
             }
             });
 
         } catch (error) {
-            console.error('❌ Error al obtener el historial de transacciones de tarjeta:', error);
+            console.error('❌ Error al obtener el historial de transacciones:', error);
             res.status(500).json({ 
             ok: false, 
             error: 'Internal server error',
@@ -1177,12 +1176,9 @@ class AppAccountAndCardPaysatTransactionsController {
         let { paysatUID } = req.params;
 
         try {
-            // console.log('🔍 Obteniendo historial de movimientos para paysatUID:', paysatUID);
-
             // Limpiar el paysatUID de caracteres no deseados al inicio
             if (paysatUID.startsWith(':')) {
             paysatUID = paysatUID.substring(1);
-            //   console.log('🧹 paysatUID limpiado (removido :):', paysatUID);
             }
 
             // Validar que paysatUID no esté vacío después de la limpieza
@@ -1193,52 +1189,46 @@ class AppAccountAndCardPaysatTransactionsController {
             });
             }
 
-            // Obtener los movimientos de tarjeta del usuario desde PaySat_Card_Movements
-            const movementsSnapshot = await db.collection('PaySat_Card_Movements')
+            // Obtener el documento de movimientos del usuario (nueva estructura)
+            const userMovementsDoc = await db.collection('Banco_PaySat_Money')
+            .doc(paysatUID)
+            .get();
+
+            if (!userMovementsDoc.exists) {
+            console.log('📊 No se encontraron movimientos para el usuario:', paysatUID);
+            
+            // Obtener información de tarjetas del usuario
+            const cardData = await db.collection('Stripe_Issuing_Cards')
             .where('paysatUID', '==', paysatUID)
             .get();
 
-            console.log('📊 Movimientos encontrados:', movementsSnapshot.size);
-
-            // if (movementsSnapshot.empty) {
-            //   return res.json({
-            //     ok: true,
-            //     data: [],
-            //     message: 'No se encontraron movimientos para este usuario'
-            //   });
-            // }
-
-            // Procesar los movimientos y calcular el saldo
-            let saldoTotal = 0.00;
-
-            movementsSnapshot.forEach(doc => {
-            const data = doc.data();
-            const typeMovement = data.typeMovement;
-            const monto = parseFloat(data.amount) || 0.00;
-            
-            // Calcular saldo según el tipo de movimiento
-            if (typeMovement === 'deposit' || typeMovement === 'recharge' || typeMovement === 'transfer_received') {
-                saldoTotal += monto; // Sumar depósitos, recargas y transferencias recibidas
-            } else if (typeMovement === 'buy' || typeMovement === 'transfer_sent') {
-                saldoTotal -= monto; // Restar compras y transferencias enviadas
-            } else if (typeMovement === 'fee') {
-                saldoTotal -= parseFloat(data.totalFee);
-            }
+            return res.json({
+                ok: true,
+                data: {
+                cardId: cardData.empty ? '' : cardData.docs[0].data().stripeCard["id"] || '',
+                balance: 0.00,
+                nameCard: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',
+                cardNumber: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
+                },
+                message: 'No se encontraron movimientos para este usuario'
             });
+            }
+
+            const userData = userMovementsDoc.data();
+            const balance = userData.customerBalance || 0;
 
             // Obtener información de tarjetas del usuario
             const cardData = await db.collection('Stripe_Issuing_Cards')
             .where('paysatUID', '==', paysatUID)
             .get();
 
-            // Redondear saldo a 2 decimales
-            saldoTotal = parseFloat(saldoTotal.toFixed(2));
-            console.log(`✅ Saldo total calculado: $${saldoTotal}`);
+            console.log(`✅ Saldo total: $${balance}`);
+            
             res.json({
             ok: true,      
             data: {
                 cardId: cardData.empty ? '' : cardData.docs[0].data().stripeCard["id"] || '',
-                balance: saldoTotal,
+                balance: balance,
                 nameCard: cardData.empty ? '' : cardData.docs[0].data().stripeCard["cardholder"]["name"] || '',
                 cardNumber: cardData.empty ? '' : cardData.docs[0].data().stripeCard["last4"] || '',
             }      

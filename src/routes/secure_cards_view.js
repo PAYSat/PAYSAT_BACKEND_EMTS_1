@@ -35,89 +35,95 @@ router.get('/view', (req, res) => {
                       body {
                         margin: 0;
                         padding: 16px;
-                        background: #020b1a;
+                        background: #000000;
                         color: #ffffff;
                         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                       }
                       .wrapper { max-width: 420px; margin: 0 auto; }
                       .title { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
-                      .subtitle { font-size: 13px; opacity: 0.8; margin-bottom: 20px; }
+                      .subtitle { font-size: 13px; opacity: 0.8; margin-bottom: 20px; line-height: 1.4; }
+                      
                       .card-container {
                         position: relative;
                         border-radius: 18px;
-                        padding: 16px 18px;
-                        background: radial-gradient(circle at 0% 0%, #f1e07e 0%, #46c7f8 40%, #2147d9 100%);
+                        padding: 24px 80px 7px 24px;
+                        background-image: url('https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fcard%2Fcard1.jpg?alt=media&token=654dd374-5c91-482c-a103-e65b3398589a');
+                        background-size: cover;
+                        background-position: center;
+                        background-repeat: no-repeat;
                         box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
                         overflow: hidden;
-                        min-height: 190px;
+                        aspect-ratio: 1.58 / 1; /* Mantiene la proporción estándar de una tarjeta de crédito */
+                        width: 100%;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end; /* Empuja los datos hacia la parte inferior simulando el diseño original */
+                        bottom
                       }
-                      .card-logo {
-                        position: absolute;
-                        top: 12px;
-                        right: 18px;
-                        font-weight: 700;
-                        font-size: 16px;
-                        letter-spacing: 0.08em;
-                        text-transform: uppercase;
-                      }
-                      .card-chip {
-                        width: 42px;
-                        height: 30px;
-                        border-radius: 6px;
-                        background: linear-gradient(135deg, #f1e07e, #ffe797);
-                        margin-bottom: 18px;
-                      }
+                      
                       .card-label {
                         font-size: 10px;
                         text-transform: uppercase;
-                        letter-spacing: 0.15em;
-                        opacity: 0.85;
+                        letter-spacing: 0.08em;
+                        opacity: 0.7;
+                        margin-bottom: 2px;
                       }
+                      
                       .card-value {
                         font-size: 17px;
                         font-weight: 500;
-                        margin-top: 4px;
-                        margin-bottom: 10px;
+                        /*margin-bottom: 14px;*/
+                        min-height: 22px; /* Evita saltos de línea mientras carga Stripe */
                       }
-                      .card-row { display: flex; gap: 16px; margin-top: 6px; }
-                      .card-col { flex: 1; }
+                      
+                      .card-row { 
+                        display: flex; 
+                        gap: 32px; 
+                        margin-top: 15px;
+                      }
+                      
+                      .card-col { 
+                        flex: 1; 
+                      }
+                      
                       .card-footer {
-                        position: absolute;
-                        bottom: 10px;
-                        left: 18px;
-                        right: 18px;
                         display: flex;
+                        position: absolute;
+                        top: 20px;
+                        right: 20px;    
                         align-items: center;
                         justify-content: space-between;
-                        font-size: 11px;
-                        opacity: 0.9;
+                        margin-top: 4px;
                       }
-                      .visa-mark { font-size: 20px; font-weight: 700; }
+                      
                       .badge {
                         display: inline-block;
-                        padding: 2px 8px;
+                        padding: 4px 10px;
                         border-radius: 999px;
-                        background: rgba(0, 0, 0, 0.25);
+                        background: rgba(255, 255, 255, 0.15);
+                        backdrop-filter: blur(4px);
+                        -webkit-backdrop-filter: blur(4px);
                         font-size: 10px;
+                        font-weight: 500;
                       }
-                      .hint { margin-top: 14px; font-size: 11px; opacity: 0.7; line-height: 1.4; }
+                      
+                      .hint { margin-top: 18px; font-size: 11px; opacity: 0.7; line-height: 1.4; }
                       #error-message { margin-top: 10px; font-size: 12px; color: #ffb3b3; }
                     </style>
                   </head>
-                  <body>
+                  <body>     
                     <div class="wrapper">
-                      <div class="title">Ver datos de tu tarjeta PAYSAT</div>
+                      <div class="title">Tu tarjeta PAYSAT</div>
                       <div class="subtitle">
                         Estos datos son sensibles. No compartas capturas de pantalla y asegúrate de estar en un entorno seguro.
                       </div>
-
+                
                       <div class="card-container">
-                        <div class="card-logo">PAYSAT</div>
-                        <div class="card-chip"></div>
-
-                        <div class="card-label">Número de tarjeta</div>
-                        <div id="card-number" class="card-value"></div>
-
+                        <div>
+                          <div class="card-label">Número de tarjeta</div>
+                          <div id="card-number" class="card-value"></div>
+                        </div>
+                
                         <div class="card-row">
                           <div class="card-col">
                             <div class="card-label">Vence</div>
@@ -128,65 +134,66 @@ router.get('/view', (req, res) => {
                             <div id="card-cvc" class="card-value"></div>
                           </div>
                         </div>
-
+                
                         <div class="card-footer">
                           <span class="badge">Virtual • Stripe Issuing</span>
-                          <span class="visa-mark">VISA</span>
+                          <span></span>
                         </div>
                       </div>
-
+                
                       <div id="error-message"></div>
-
+                
                       <div class="hint">
                         Si no ves la información de la tarjeta, vuelve a intentarlo o cierra esta vista y ábrela nuevamente desde tu app PAYSAT.
                       </div>
                     </div>
-
-                        <script>
+                
+                    <script>
                       (function () {
                         var params = new URLSearchParams(window.location.search);
                         var cardId = params.get('card_id');
-                        var token = params.get('token'); // 👈 token de Firebase que viene desde Flutter
-
+                        var token = params.get('token'); 
+                
                         if (!cardId) {
                           document.getElementById('error-message').textContent =
                             'No se encontró card_id en la URL.';
                           return;
                         }
-
+                
                         if (typeof Stripe === 'undefined') {
                           document.getElementById('error-message').textContent =
                             'No se pudo cargar Stripe.js. Revisa tu conexión a Internet desde este dispositivo.';
                           return;
                         }
-
-                        var stripe = Stripe('${publishableKey}'); // ya la tienes en el template
+                
+                        var stripe = Stripe('${publishableKey}'); 
                         var elements = stripe.elements();
-
+                
                         function showError(message) {
                           var el = document.getElementById('error-message');
                           el.textContent =
                             message || 'Ocurrió un error cargando la información de la tarjeta.';
                         }
-
+                
                         async function initIssuingElements() {
                           try {
                             console.log('➡️ creando nonce para card:', cardId);
                             var nonceResult = await stripe.createEphemeralKeyNonce({
                               issuingCard: cardId,
+                              nonce: nonce,
                             });
-
+                
                             if (nonceResult.error) {
                               console.error('❌ Error nonce:', nonceResult.error);
                               showError('No se pudo inicializar la tarjeta (nonce).');
                               return;
                             }
-
+                
                             var nonce = nonceResult.nonce;
                             console.log('🟢 Nonce OK:', nonce);
-
+                
                             console.log('➡️ llamando a /api/issuing/ephemeral-keys');
-
+                
                             var res = await fetch('/api/issuing/ephemeral-keys', {
                               method: 'POST',
                               headers: {
@@ -198,9 +205,9 @@ router.get('/view', (req, res) => {
                                 nonce: nonce,
                               }),
                             });
-
+                
                             console.log('⬅️ respuesta /api/issuing/ephemeral-keys:', res.status);
-
+                
                             if (!res.ok) {
                               var errorText = await res.text();
                               console.error('❌ Error HTTP:', res.status, errorText);
@@ -211,17 +218,17 @@ router.get('/view', (req, res) => {
                               );
                               return;
                             }
-
+                
                             var data = await res.json();
                             var ephemeralKeySecret = data.ephemeralKeySecret;
-
+                
                             if (!ephemeralKeySecret) {
                               showError('Respuesta inválida al obtener ephemeral key.');
                               return;
                             }
-
+                
                             console.log('🟢 ephemeralKeySecret OK, montando Elements');
-
+                
                             var numberEl = elements.create('issuingCardNumberDisplay', {
                               issuingCard: cardId,
                               nonce: nonce,
@@ -237,7 +244,7 @@ router.get('/view', (req, res) => {
                               },
                             });
                             numberEl.mount('#card-number');
-
+                
                             var expiryEl = elements.create('issuingCardExpiryDisplay', {
                               issuingCard: cardId,
                               nonce: nonce,
@@ -252,7 +259,7 @@ router.get('/view', (req, res) => {
                               },
                             });
                             expiryEl.mount('#card-expiry');
-
+                
                             var cvcEl = elements.create('issuingCardCvcDisplay', {
                               issuingCard: cardId,
                               nonce: nonce,
@@ -272,11 +279,10 @@ router.get('/view', (req, res) => {
                             showError();
                           }
                         }
-
+                
                         initIssuingElements();
                       })();
                     </script>
-
                   </body>
                 </html>`;
 

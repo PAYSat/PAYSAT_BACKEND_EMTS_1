@@ -23,7 +23,7 @@ export const userProfile = async (req, res) => {
           fullName: userData.data().fullName ?? userReq.fullName ?? null,
           firstName: userData.data().firstName ?? userReq.firstName ?? null,
           names: userData.data().names ?? null,
-          lastName: userData.data().lastName ?? null,
+          lastName: userData.data().lastNames ?? null,
           phoneNumber: userData.data().phoneNumber ?? userReq.phoneNumber ?? null,
           phoneCountryCode: userData.data().phoneCountryCode ?? userReq.phoneCountryCode ?? null,
           phoneCountryISO2: userData.data().phoneCountryISO2 ?? userReq.phoneCountryISO2 ?? null,
