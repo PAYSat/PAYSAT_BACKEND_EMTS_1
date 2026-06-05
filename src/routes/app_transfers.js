@@ -3,6 +3,7 @@ import AppTransfersController from '../controllers/app_transfers_controller.js';
 import AppPaySatTransferController from '../controllers/app_signup_otp_controller.js';
 import LinkedUserAccountTransferController from '../controllers/app_linked_user_account_transfer_controller.js';
 import LinkedUserPhoneNumbersTransferController from '../controllers/app_linked_user_phone_numbers_transfer_controller.js';
+import QRLinkedUserPhoneNumbersTransferController from '../controllers/app_qr_linked_user_phone_numbers_transfer_controller.js';
 
 const router = Router();
     
@@ -10,6 +11,7 @@ const appTransfersController = new AppTransfersController();
 const appPaySatTransferController = new AppPaySatTransferController();
 const linkedUserAccountTransferController = new LinkedUserAccountTransferController();
 const linkedUserPhoneNumbersTransferController = new LinkedUserPhoneNumbersTransferController();
+const qrLinkedUserPhoneNumbersTransferController = new QRLinkedUserPhoneNumbersTransferController();
 
 // Rutas para listar cuentas propias y de destino
 router.get('/user/accounts/list/:id', linkedUserAccountTransferController.listUserOwnAccounts);
@@ -43,6 +45,22 @@ router.delete('/user/delete/destination/phone-number/:phoneNumberFull', linkedUs
 router.get('/user/destination/phone-number/fee', linkedUserPhoneNumbersTransferController.getPhoneNumberTransferFee);
 router.post('/user/send/transfer/to/phone-number', linkedUserPhoneNumbersTransferController.sendTransferToPhoneNumber);
 router.post('/user/receive/pending/phone-number/transfer', linkedUserPhoneNumbersTransferController.receivePendingPhoneNumberTransfer);
+
+//-----------------------------------------------------------------------------------------------------------------------------------//
+// Rutas para PAGO MOVIL QR INTERNACIONAL PAYSAT
+router.get('/user/destination/phone-numbers/list/:id', linkedUserPhoneNumbersTransferController.listDestinationTransfersPhoneNumbers);
+router.post('/user/register/destination/phone-number', linkedUserPhoneNumbersTransferController.saveDestinationPhoneNumbers);
+router.delete('/user/delete/destination/phone-number/:phoneNumberFull', linkedUserPhoneNumbersTransferController.deleteDestinationPhoneNumber);
+router.get('/user/destination/phone-number/fee', linkedUserPhoneNumbersTransferController.getPhoneNumberTransferFee);
+router.post('/user/send/transfer/to/phone-number', linkedUserPhoneNumbersTransferController.sendTransferToPhoneNumber);
+router.post('/user/receive/pending/phone-number/transfer', linkedUserPhoneNumbersTransferController.receivePendingPhoneNumberTransfer);
+
+router.post('/qr/generate-static', qrLinkedUserPhoneNumbersTransferController.generateStaticQR);
+router.post('/qr/generate-dynamic', qrLinkedUserPhoneNumbersTransferController.generateDynamicQR);
+router.post('/qr/validate', qrLinkedUserPhoneNumbersTransferController.validateQR);
+// router.post('/qr/perform-transfer', appTransfersController.performQRTransfer);
+// router.post('/qr/revoke', appTransfersController.revokeQR);
+router.get('/qr/list/my-qrs', qrLinkedUserPhoneNumbersTransferController.listMyQRs);
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------//

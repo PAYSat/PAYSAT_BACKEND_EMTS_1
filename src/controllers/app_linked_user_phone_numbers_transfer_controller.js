@@ -450,7 +450,12 @@ class LinkedUserPhoneNumbersTransferController {
             }
 
             const uid = req.user.uid;
-            const { amount, reason, originUID, destinationPhoneNumber } = req.body;
+            const {
+                amount,
+                reason,
+                originUID,
+                destinationPhoneNumber
+            } = req.body;
 
             // 2. VALIDAR DATOS REQUERIDOS
             if (!amount || !originUID || !destinationPhoneNumber) {
