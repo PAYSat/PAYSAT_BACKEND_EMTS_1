@@ -58,8 +58,8 @@ router.post('/user/receive/pending/phone-number/transfer', linkedUserPhoneNumber
 router.post('/qr/generate-static', qrLinkedUserPhoneNumbersTransferController.generateStaticQR);
 router.post('/qr/generate-dynamic', qrLinkedUserPhoneNumbersTransferController.generateDynamicQR);
 router.post('/qr/validate', qrLinkedUserPhoneNumbersTransferController.validateQR);
-// router.post('/qr/perform-transfer', appTransfersController.performQRTransfer);
-// router.post('/qr/revoke', appTransfersController.revokeQR);
+router.post('/qr/perform-transfer', qrLinkedUserPhoneNumbersTransferController.qrPerformTransferToPhoneNumber);
+router.post('/qr/revoke', qrLinkedUserPhoneNumbersTransferController.revokeQR);
 router.get('/qr/list/my-qrs', qrLinkedUserPhoneNumbersTransferController.listMyQRs);
 
 
