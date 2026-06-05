@@ -1228,9 +1228,9 @@ class QRLinkedUserPhoneNumbersTransferController {
             if (destinationUserExists) {
                 destinationUserData = destinationUsersSnapshot.docs[0].data();
                 destinationUID = destinationUsersSnapshot.docs[0].id;
-                console.log(`[qrPerformTransferToPhoneNumber] Usuario destino ENCONTRADO: ${destinationUID}, ${destinationUserData.fullName}`);
+                // console.log(`[qrPerformTransferToPhoneNumber] Usuario destino ENCONTRADO: ${destinationUID}, ${destinationUserData.fullName}`);
             } else {
-                console.log(`[qrPerformTransferToPhoneNumber] Usuario destino NO ENCONTRADO para phone: ${destinationPhoneNumber}, account: ${destinationAccountNumber}`);
+                // console.log(`[qrPerformTransferToPhoneNumber] Usuario destino NO ENCONTRADO para phone: ${destinationPhoneNumber}, account: ${destinationAccountNumber}`);
             }
 
             // 9. VALIDAR SALDO SUFICIENTE EN CUENTA PRINCIPAL
@@ -1309,19 +1309,19 @@ class QRLinkedUserPhoneNumbersTransferController {
             const timestamp = new Date().toISOString();
             const firestoreTimestamp = admin.firestore.Timestamp.now();
 
-            console.log(`[qrPerformTransferToPhoneNumber] Iniciando transacción ID: ${transactionUID}`);
-            console.log(`[qrPerformTransferToPhoneNumber] destinationUserExists: ${destinationUserExists}, isOriginPaysat: ${isOriginPaysat}`);
+            // console.log(`[qrPerformTransferToPhoneNumber] Iniciando transacción ID: ${transactionUID}`);
+            // console.log(`[qrPerformTransferToPhoneNumber] destinationUserExists: ${destinationUserExists}, isOriginPaysat: ${isOriginPaysat}`);
 
             // 13. EJECUTAR TRANSACCIÓN ATÓMICA
             await db.runTransaction(async (transaction) => {
                 
                 // ESCENARIO 1: DESTINO EXISTE EN PAYSAT
                 if (destinationUserExists) {
-                    console.log(`[qrPerformTransferToPhoneNumber] ESCENARIO 1: Destino existe en PaySat`);
+                    // console.log(`[qrPerformTransferToPhoneNumber] ESCENARIO 1: Destino existe en PaySat`);
                     
                     // FORMA 1: ORIGEN ES PAYSAT
                     if (isOriginPaysat) {
-                        console.log(`[qrPerformTransferToPhoneNumber] FORMA 1: Origen es PaySat`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] FORMA 1: Origen es PaySat`);
                         // Restar de cuenta principal del usuario origen
                         const newBalanceOrigin = userMainBalance - transferAmount - feeValue;
                         const newTotalOrigin = newBalanceOrigin + userMainEscrow;
@@ -1339,8 +1339,8 @@ class QRLinkedUserPhoneNumbersTransferController {
                         const newBalanceDestination = destinationBalance + transferAmount;
                         const newTotalDestination = newBalanceDestination + destinationEscrow;
 
-                        console.log(`[qrPerformTransferToPhoneNumber] Actualizando cuenta destino ${destinationUID}`);
-                        console.log(`[qrPerformTransferToPhoneNumber] Balance destino anterior: ${destinationBalance}, nuevo: ${newBalanceDestination}`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] Actualizando cuenta destino ${destinationUID}`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] Balance destino anterior: ${destinationBalance}, nuevo: ${newBalanceDestination}`);
 
                         transaction.update(destinationRef, {
                             customerBalance: newBalanceDestination,
@@ -1437,7 +1437,7 @@ class QRLinkedUserPhoneNumbersTransferController {
 
                     } else {
                         // FORMA 2: ORIGEN ES CUENTA EXTERNA
-                        console.log(`[qrPerformTransferToPhoneNumber] FORMA 2: Origen es cuenta externa`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] FORMA 2: Origen es cuenta externa`);
                         
                         // Usar la referencia obtenida antes de la transacción
                         const externalAccountDoc = await transaction.get(externalAccountRef);
@@ -1522,8 +1522,8 @@ class QRLinkedUserPhoneNumbersTransferController {
                         const newBalanceDestination = destinationBalance + transferAmount;
                         const newTotalDestination = newBalanceDestination + destinationEscrow;
 
-                        console.log(`[qrPerformTransferToPhoneNumber] Actualizando cuenta destino ${destinationUID} (desde cuenta externa)`);
-                        console.log(`[qrPerformTransferToPhoneNumber] Balance destino anterior: ${destinationBalance}, nuevo: ${newBalanceDestination}`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] Actualizando cuenta destino ${destinationUID} (desde cuenta externa)`);
+                        // console.log(`[qrPerformTransferToPhoneNumber] Balance destino anterior: ${destinationBalance}, nuevo: ${newBalanceDestination}`);
 
                         transaction.update(destinationRef, {
                             customerBalance: newBalanceDestination,
@@ -1895,7 +1895,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                 }
             });
 
-            console.log(`[qrPerformTransferToPhoneNumber] Transacción completada exitosamente. ID: ${transactionUID}`);
+            // console.log(`[qrPerformTransferToPhoneNumber] Transacción completada exitosamente. ID: ${transactionUID}`);
 
             // 13. REGISTRAR EN LEDGER (fuera de la transacción)
             try {
