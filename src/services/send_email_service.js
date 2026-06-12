@@ -438,7 +438,7 @@ class EmailService {
  */
 
   async sendWelcomeEmail({ firstName, email, loginMethod }) {
-    let logoUrl = process.env.APP_LOGO_URL || 'https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Flogos%2Ficon_letras_x480.jpg?alt=media&token=3bd6afbf-23e3-427d-8fd0-15db51e1a203';
+    let logoUrl = process.env.APP_LOGO_URL;
 
     const currentDate = new Date().toLocaleString('es-ES', { 
       timeZone: 'America/Guayaquil',
@@ -459,7 +459,7 @@ class EmailService {
         <style>
           .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
           .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; padding: 32px; text-align: center; border-radius: 12px 12px 0 0; }
-          .logo { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+          .logo { width: 110px; height: 80px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
           .content { padding: 32px; background: #f8f9fa; }
           .welcome-icon { font-size: 64px; text-align: center; margin: 24px 0; }
           .greeting { font-size: 28px; font-weight: bold; color: #1F2937; text-align: center; margin: 20px 0; }
@@ -635,7 +635,7 @@ class EmailService {
    * @param {string} params.destinationAffiliate - Nombre del afiliado destino
    */
   async sendTransferSentEmail({ email, recipientName, amount, movementId, originLogoUrl, destinationLogoUrl, destinationAffiliate }) {
-    const appLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+    const appLogoUrl = process.env.APP_LOGO_URL;
     const appArrow = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Farrows%2Farrow.png?alt=media&token=e24d66ea-3ff6-48c8-8ce4-58f0a8e73e70';
 
     const htmlContent = `
@@ -717,7 +717,7 @@ class EmailService {
    * @param {string} params.destinationAffiliate - Nombre del afiliado destino
    */
   async sendTransferReceivedEmail({ email, senderName, amount, movementId, originLogoUrl, destinationLogoUrl, destinationAffiliate }) {
-    const appLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Flogos%2Ficon6.png?alt=media&token=9b19110a-2bd6-4b53-9f65-41eedf15e632';
+    const appLogoUrl = process.env.APP_LOGO_URL;
     const appArrow = 'https://firebasestorage.googleapis.com/v0/b/ps-transferencias.firebasestorage.app/o/app_assets%2Farrows%2Farrow.png?alt=media&token=e24d66ea-3ff6-48c8-8ce4-58f0a8e73e70';
 
     const htmlContent = `

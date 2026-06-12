@@ -36,29 +36,28 @@ router.get('/view', (req, res) => {
                         margin: 0;
                         padding: 16px;
                         background: #000000;
-                        color: #ffffff;
+                        color: #cad1d9;
                         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                       }
                       .wrapper { max-width: 420px; margin: 0 auto; }
-                      .title { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+                      .title { font-size: 18px; margin-bottom: 12px; }
                       .subtitle { font-size: 13px; opacity: 0.8; margin-bottom: 20px; line-height: 1.4; }
                       
                       .card-container {
                         position: relative;
                         border-radius: 18px;
                         padding: 24px 80px 7px 24px;
-                        background-image: url('https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fcard%2Fcard1.jpg?alt=media&token=654dd374-5c91-482c-a103-e65b3398589a');
+                        background-image: url('https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fcard%2Fcard_secure_view.jpg?alt=media&token=64ce69b4-4314-470c-9ac2-b2e06a4d21e8');
                         background-size: cover;
                         background-position: center;
                         background-repeat: no-repeat;
-                        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+                        box-shadow: 0 0 0 1px rgba(229, 199, 107, 0.12);
                         overflow: hidden;
                         aspect-ratio: 1.58 / 1; /* Mantiene la proporción estándar de una tarjeta de crédito */
                         width: 100%;
                         display: flex;
                         flex-direction: column;
                         justify-content: flex-end; /* Empuja los datos hacia la parte inferior simulando el diseño original */
-                        bottom
                       }
                       
                       .card-label {
@@ -235,7 +234,7 @@ router.get('/view', (req, res) => {
                               ephemeralKeySecret: ephemeralKeySecret,
                               style: {
                                 base: {
-                                  color: '#ffffff',
+                                  color: '#cad1d9',
                                   fontSize: '17px',
                                   fontFamily:
                                     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -251,7 +250,7 @@ router.get('/view', (req, res) => {
                               ephemeralKeySecret: ephemeralKeySecret,
                               style: {
                                 base: {
-                                  color: '#ffffff',
+                                  color: '#cad1d9',
                                   fontSize: '14px',
                                   fontFamily:
                                     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -266,7 +265,7 @@ router.get('/view', (req, res) => {
                               ephemeralKeySecret: ephemeralKeySecret,
                               style: {
                                 base: {
-                                  color: '#ffffff',
+                                  color: '#cad1d9',
                                   fontSize: '14px',
                                   fontFamily:
                                     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',

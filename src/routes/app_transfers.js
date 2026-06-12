@@ -4,6 +4,7 @@ import AppPaySatTransferController from '../controllers/app_signup_otp_controlle
 import LinkedUserAccountTransferController from '../controllers/app_linked_user_account_transfer_controller.js';
 import LinkedUserPhoneNumbersTransferController from '../controllers/app_linked_user_phone_numbers_transfer_controller.js';
 import QRLinkedUserPhoneNumbersTransferController from '../controllers/app_qr_linked_user_phone_numbers_transfer_controller.js';
+import AppUserNotificationsController from '../controllers/app_user_notifications_controller.js';
 
 const router = Router();
     
@@ -12,6 +13,7 @@ const appPaySatTransferController = new AppPaySatTransferController();
 const linkedUserAccountTransferController = new LinkedUserAccountTransferController();
 const linkedUserPhoneNumbersTransferController = new LinkedUserPhoneNumbersTransferController();
 const qrLinkedUserPhoneNumbersTransferController = new QRLinkedUserPhoneNumbersTransferController();
+const appUserNotificationsController = new AppUserNotificationsController();
 
 // Rutas para listar cuentas propias y de destino
 router.get('/user/accounts/list/:id', linkedUserAccountTransferController.listUserOwnAccounts);
@@ -61,6 +63,10 @@ router.post('/qr/validate', qrLinkedUserPhoneNumbersTransferController.validateQ
 router.post('/qr/perform-transfer', qrLinkedUserPhoneNumbersTransferController.qrPerformTransferToPhoneNumber);
 router.post('/qr/revoke', qrLinkedUserPhoneNumbersTransferController.revokeQR);
 router.get('/qr/list/my-qrs', qrLinkedUserPhoneNumbersTransferController.listMyQRs);
+
+//-----------------------------------------------------------------------------------------------------------------------------------//
+// Rutas para NOTIFICACIONES DE TRANSFERENCIAS
+router.get('/notifications/list/:id', appUserNotificationsController.listTransferNotifications);
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------//
