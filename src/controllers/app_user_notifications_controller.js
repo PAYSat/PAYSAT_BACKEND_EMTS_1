@@ -7,6 +7,7 @@ class AppUserNotificationsController {
 
   // Método para listar notificaciones de transferencias de un usuario
   async listTransferNotifications(req, res) {
+    
   }
 }
 
