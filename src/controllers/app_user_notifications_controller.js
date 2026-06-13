@@ -178,52 +178,40 @@ class AppUserNotificationsController {
 
       console.log(`[RESULTADO FINAL] ${filteredNotifications.length} notificaciones filtradas de ${allNotifications.length} totales`);
 
-      // Visualizar los datos que se van a enviar
-    //   console.log('\n========== DATOS A ENVIAR AL FRONTEND ==========');
-    //   console.log('Usuario UID:', uid);
-    //   console.log('Rango de fechas:', { fechaInicio, fechaFin });
-    //   console.log('Total notificaciones:', filteredNotifications.length);
-    //   console.log('\n--- NOTIFICACIONES FILTRADAS ---');
-    //   filteredNotifications.forEach((notif, index) => {
-    //     console.log(`\nNotificación ${index + 1}:`);
-    //     console.log('  Title:', notif.title);
-    //     console.log('  Body:', notif.body);
-    //     console.log('  Token Transaction:', notif.tokenTransaction);
-    //     console.log('  Created At:', notif.createdAt);
-    //   });
-    //   console.log('\n================================================\n');
-
-      // 6. MARCAR NOTIFICACIONES COMO LEÍDAS
-      let notificationsToReturn = filteredNotifications;
-      
-      if (filteredNotifications.length > 0) {
-        // Crear Set de tokens de las notificaciones filtradas para búsqueda rápida
-        const filteredTokens = new Set(
-          filteredNotifications.map(n => n.tokenTransaction)
-        );
-
-        // Actualizar todas las notificaciones para marcar las filtradas como leídas
-        const updatedNotifications = allNotifications.map(notification => {
-          // Verificar si esta notificación está en las filtradas
-          if (filteredTokens.has(notification.tokenTransaction)) {
-            return { ...notification, read: true };
-          }
-          return notification;
-        });
-
-        // Actualizar el documento en Firestore
-        await userNotificationsRef.update({
-          notifications: updatedNotifications
-        });
-
-        // Crear array de notificaciones a retornar con read: true
-        notificationsToReturn = filteredNotifications.map(notification => ({
+      // 6. MARCAR TODAS LAS NOTIFICACIONES COMO LEÍDAS
+      try {
+        // Marcar TODAS las notificaciones como leídas (no solo las filtradas)
+        const allNotificationsRead = allNotifications.map(notification => ({
           ...notification,
           read: true
         }));
 
-        console.log(`✅ Marcadas ${filteredNotifications.length} notificaciones como leídas en Firestore`);
+        console.log(`[UPDATE] Marcando TODAS las ${allNotifications.length} notificaciones como leídas`);
+
+        // Actualizar el documento en Firestore
+        await userNotificationsRef.set({
+          notifications: allNotificationsRead
+        }, { merge: true });
+
+        console.log(`✅ Todas las notificaciones del usuario ${uid} marcadas como leídas en Firestore`);
+        
+        // Verificación
+        const verifyDoc = await userNotificationsRef.get();
+        const verifyData = verifyDoc.data();
+        const verifiedNotifications = verifyData.notifications || [];
+        const verifiedReadCount = verifiedNotifications.filter(n => n.read === true).length;
+        console.log(`[VERIFICACIÓN] Notificaciones con read=true: ${verifiedReadCount}/${verifiedNotifications.length}`);
+        
+      } catch (updateError) {
+        console.error(`❌ Error al actualizar Firestore:`, updateError);
+        throw updateError;
       }
+
+      // Marcar las notificaciones filtradas como leídas para la respuesta
+      const notificationsToReturn = filteredNotifications.map(notification => ({
+        ...notification,
+        read: true
+      }));
 
       // 7. RESPUESTA EXITOSA
       return res.status(200).json({
