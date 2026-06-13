@@ -66,7 +66,7 @@ router.get('/qr/list/my-qrs', qrLinkedUserPhoneNumbersTransferController.listMyQ
 
 //-----------------------------------------------------------------------------------------------------------------------------------//
 // Rutas para NOTIFICACIONES DE TRANSFERENCIAS
-router.get('/notifications/list/:id', appUserNotificationsController.listTransferNotifications);
+router.post('/notifications/list', appUserNotificationsController.listTransferNotifications);
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------//

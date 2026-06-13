@@ -63,6 +63,49 @@ async function getUserTokens(uid) {
 }
 
 /**
+ * Guarda una notificación en el historial del usuario
+ */
+async function saveNotificationToUser(uid, notificationData) {
+    try {
+        const { title, body, tokenTransaction } = notificationData;
+        
+        // Crear timestamp en formato legible español Ecuador
+        const createdAt = new Date().toLocaleString('es-EC', { 
+            timeZone: 'America/Guayaquil',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+        });
+
+        const notificationEntry = {
+            title,
+            body,
+            tokenTransaction,
+            createdAt,
+            read: false
+        };
+
+        // Referencia al documento de notificaciones del usuario
+        const userNotificationsRef = db.collection('PaySat_User_Notifications').doc(uid);
+        
+        // Agregar la notificación al array usando arrayUnion
+        await userNotificationsRef.set({
+            notifications: admin.firestore.FieldValue.arrayUnion(notificationEntry)
+        }, { merge: true });
+
+        console.log(`✅ Notificación guardada para usuario ${uid}`);
+        return { ok: true };
+    } catch (error) {
+        console.error(`Error guardando notificación para usuario ${uid}:`, error);
+        return { ok: false, error: error.message };
+    }
+}
+
+/**
  * Envía notificación push a un usuario
  */
 async function notifyUser(uid, payload) {
@@ -176,6 +219,13 @@ export async function notifyPaySatToPaySatTransfer({
 
         console.log(`[notifyPaySatToPaySatTransfer] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
+        
+        // Guardar notificación en historial del usuario origen
+        await saveNotificationToUser(originUID, {
+            title: originPayload.notification.title,
+            body: originPayload.notification.body,
+            tokenTransaction: transactionUID
+        });
 
         // Notificación al DESTINO
         const destinationPayload = {
@@ -195,6 +245,13 @@ export async function notifyPaySatToPaySatTransfer({
 
         console.log(`[notifyPaySatToPaySatTransfer] Enviando notificación de RECEPCIÓN a destinationUID: ${destinationUID}`);
         results.destination = await notifyUser(destinationUID, destinationPayload);
+        
+        // Guardar notificación en historial del usuario destino
+        await saveNotificationToUser(destinationUID, {
+            title: destinationPayload.notification.title,
+            body: destinationPayload.notification.body,
+            tokenTransaction: transactionUID
+        });
 
         // Enviar emails
         const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
@@ -278,6 +335,13 @@ export async function notifyExternalToPaySatTransfer({
 
         console.log(`[notifyExternalToPaySatTransfer] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
+        
+        // Guardar notificación en historial del usuario origen
+        await saveNotificationToUser(originUID, {
+            title: originPayload.notification.title,
+            body: originPayload.notification.body,
+            tokenTransaction: transactionUID
+        });
 
         // Notificación al DESTINO (igual que el caso anterior)
         const destinationPayload = {
@@ -297,6 +361,13 @@ export async function notifyExternalToPaySatTransfer({
 
         console.log(`[notifyExternalToPaySatTransfer] Enviando notificación de RECEPCIÓN a destinationUID: ${destinationUID}`);
         results.destination = await notifyUser(destinationUID, destinationPayload);
+        
+        // Guardar notificación en historial del usuario destino
+        await saveNotificationToUser(destinationUID, {
+            title: destinationPayload.notification.title,
+            body: destinationPayload.notification.body,
+            tokenTransaction: transactionUID
+        });
 
         // Enviar emails
         const fecha = new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
@@ -412,6 +483,13 @@ export async function notifyTransferToNonPaySatUser({
 
         console.log(`[notifyTransferToNonPaySatUser] Enviando notificación de ENVÍO a originUID: ${originUID}`);
         results.origin = await notifyUser(originUID, originPayload);
+        
+        // Guardar notificación en historial del usuario origen
+        await saveNotificationToUser(originUID, {
+            title: originPayload.notification.title,
+            body: originPayload.notification.body,
+            tokenTransaction: transactionUID
+        });
 
         // Enviar WhatsApp al DESTINO (sin cuenta PaySat)
         // const whatsappResult = await sendWhatsApp(destinationPhoneNumber, amount.toFixed(2), originUserName, securityRef);

@@ -1,14 +1,17 @@
 import { Router } from 'express';
-import { userProfile, sendWelcomeEmailToUser } from '../controllers/auth_controller.js';
-import AppAccountCardPaysatTransactionsController from '../controllers/app_account_and_card_paysat_transactions_controller.js';
 import { db } from '../config/firebase.js';
 import { emailService } from '../services/send_email_service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { authFirebaseRequired } from '../middlewares/auth-firebase.js';
+import { userProfile, sendWelcomeEmailToUser } from '../controllers/auth_controller.js';
+import AppAccountCardPaysatTransactionsController from '../controllers/app_account_and_card_paysat_transactions_controller.js';
+import AppUserNotificationsController from '../controllers/app_user_notifications_controller.js';
+
 // import { requireRole } from '../middlewares/roles.js';
 
 const router = Router();
 const appAccountCardPaysatTransactionsController = new AppAccountCardPaysatTransactionsController();
+const appUserNotificationsController = new AppUserNotificationsController();
 
 // Función helper para convertir a centavos
 const toCents = (amount) => Math.round(parseFloat(parseFloat(amount).toFixed(2)) * 100);
@@ -36,6 +39,10 @@ router.get('/cards/transactions/history/:paysatUID', appAccountCardPaysatTransac
 router.get('/cards/transactions/balance/:paysatUID', appAccountCardPaysatTransactionsController.cardTransactionsBalance);
 
 router.get('/cards/check/:paysatUID', appAccountCardPaysatTransactionsController.hasUserCard);
+
+// RUTAS DE NOTIFICACIONES DE USUARIOS
+router.post('/save/notifications/login', appUserNotificationsController.saveLoginNotification);
+router.post('/notifications/unread/count', appUserNotificationsController.getUnreadNotificationsCount);
 
 // Ejemplo admin-only (descomentar si usas roles):
 // router.get('/admin/metrics', requireRole('admin'), (req, res) => {

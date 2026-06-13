@@ -50,7 +50,7 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error al obtener números telefónicos de destino:', error);
+            // console.error('Error al obtener números telefónicos de destino:', error);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al obtener los números telefónicos',
@@ -79,15 +79,15 @@ class LinkedUserPhoneNumbersTransferController {
                 destinationEmail
             } = req.body;
 
-            console.log('[saveDestinationPhoneNumbers] Datos recibidos:', {
-                uid,
-                destinationUserName,
-                destinationFullPhoneNumber,
-                destinationShortPhoneNumber,
-                phoneCountryCode,
-                phoneCountryISO2,
-                destinationEmail
-            });
+            // console.log('[saveDestinationPhoneNumbers] Datos recibidos:', {
+            //     uid,
+            //     destinationUserName,
+            //     destinationFullPhoneNumber,
+            //     destinationShortPhoneNumber,
+            //     phoneCountryCode,
+            //     phoneCountryISO2,
+            //     destinationEmail
+            // });
 
             // Validar campos requeridos (destinationEmail es opcional)
             if (!destinationUserName || !destinationFullPhoneNumber || !destinationShortPhoneNumber || 
@@ -124,7 +124,7 @@ class LinkedUserPhoneNumbersTransferController {
 
             // Si el documento no existe, crearlo con estructura completa
             if (!registeredPhoneNumbersDoc.exists) {
-                console.log('[saveDestinationPhoneNumbers] Creando nuevo documento');
+                // console.log('[saveDestinationPhoneNumbers] Creando nuevo documento');
                 await registeredPhoneNumbersRef.set({
                     paysatUID: uid,
                     createdAt: timestamp,
@@ -132,16 +132,16 @@ class LinkedUserPhoneNumbersTransferController {
                     destinationPhoneNumbers: [newPhoneNumber]
                 });
                 
-                console.log('[saveDestinationPhoneNumbers] Documento creado exitosamente');
+                // console.log('[saveDestinationPhoneNumbers] Documento creado exitosamente');
             } else {
                 // Si existe, obtener el array actual y validar duplicados
-                console.log('[saveDestinationPhoneNumbers] Actualizando documento existente');
+                // console.log('[saveDestinationPhoneNumbers] Actualizando documento existente');
                 
                 const userData = registeredPhoneNumbersDoc.data();
                 const destinationPhoneNumbers = userData.destinationPhoneNumbers || [];
 
-                console.log('[saveDestinationPhoneNumbers] Números existentes:', destinationPhoneNumbers.map(p => p.destinationFullPhoneNumber));
-                console.log('[saveDestinationPhoneNumbers] Número a guardar (normalizado):', normalizedPhoneNumber);
+                // console.log('[saveDestinationPhoneNumbers] Números existentes:', destinationPhoneNumbers.map(p => p.destinationFullPhoneNumber));
+                // console.log('[saveDestinationPhoneNumbers] Número a guardar (normalizado):', normalizedPhoneNumber);
 
                 // Normalizar el email para comparaciones (puede ser null)
                 const normalizedEmail = newPhoneNumber.destinationEmail 
@@ -154,7 +154,7 @@ class LinkedUserPhoneNumbersTransferController {
                 );
 
                 if (duplicatePhoneIndex !== -1) {
-                    console.log('[saveDestinationPhoneNumbers] Número telefónico duplicado detectado en índice:', duplicatePhoneIndex);
+                    // console.log('[saveDestinationPhoneNumbers] Número telefónico duplicado detectado en índice:', duplicatePhoneIndex);
                     return res.status(400).json({
                         ok: false,
                         message: 'Este número telefónico ya está registrado'
@@ -169,7 +169,7 @@ class LinkedUserPhoneNumbersTransferController {
                     });
 
                     if (duplicateEmailIndex !== -1) {
-                        console.log('[saveDestinationPhoneNumbers] Email duplicado detectado en índice:', duplicateEmailIndex);
+                        // console.log('[saveDestinationPhoneNumbers] Email duplicado detectado en índice:', duplicateEmailIndex);
                         return res.status(400).json({
                             ok: false,
                             message: 'Este correo electrónico ya está registrado para otro contacto'
@@ -195,7 +195,7 @@ class LinkedUserPhoneNumbersTransferController {
                 });
 
                 if (duplicateCombination !== -1) {
-                    console.log('[saveDestinationPhoneNumbers] Combinación número+email duplicada en índice:', duplicateCombination);
+                    // console.log('[saveDestinationPhoneNumbers] Combinación número+email duplicada en índice:', duplicateCombination);
                     return res.status(400).json({
                         ok: false,
                         message: 'Esta combinación de número y correo ya está registrada'
@@ -211,7 +211,7 @@ class LinkedUserPhoneNumbersTransferController {
                     updatedAt: timestamp
                 });
                 
-                console.log('[saveDestinationPhoneNumbers] Documento actualizado exitosamente');
+                // console.log('[saveDestinationPhoneNumbers] Documento actualizado exitosamente');
             }
 
             return res.status(200).json({
@@ -221,8 +221,8 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('[saveDestinationPhoneNumbers] Error completo:', error);
-            console.error('[saveDestinationPhoneNumbers] Stack trace:', error.stack);
+            // console.error('[saveDestinationPhoneNumbers] Error completo:', error);
+            // console.error('[saveDestinationPhoneNumbers] Stack trace:', error.stack);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al guardar el número telefónico',
@@ -246,9 +246,9 @@ class LinkedUserPhoneNumbersTransferController {
             // Decodificar el parámetro de la URL ya que puede contener caracteres especiales como +
             const phoneNumberFull = decodeURIComponent(req.params.phoneNumberFull || req.body.phoneNumberFull || '');
 
-            console.log('[deleteDestinationPhoneNumber] uid:', uid);
-            console.log('[deleteDestinationPhoneNumber] phoneNumberFull from params:', req.params.phoneNumberFull);
-            console.log('[deleteDestinationPhoneNumber] phoneNumberFull decoded:', phoneNumberFull);
+            // console.log('[deleteDestinationPhoneNumber] uid:', uid);
+            // console.log('[deleteDestinationPhoneNumber] phoneNumberFull from params:', req.params.phoneNumberFull);
+            // console.log('[deleteDestinationPhoneNumber] phoneNumberFull decoded:', phoneNumberFull);
 
             // Validar que se envíe el phoneNumberFull
             if (!phoneNumberFull) {
@@ -304,7 +304,7 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error al eliminar número telefónico de destino:', error);
+            // console.error('Error al eliminar número telefónico de destino:', error);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al eliminar el número telefónico',
@@ -329,7 +329,7 @@ class LinkedUserPhoneNumbersTransferController {
             const amount = parseFloat(req.query.amount || (req.body && req.body.amount));
             const originUID = req.query.originUID || (req.body && req.body.originUID);
 
-            console.log(`[getPhoneNumberTransferFee] amount: ${amount}, originUID: ${originUID || 'NO PROPORCIONADO'}`);
+            // console.log(`[getPhoneNumberTransferFee] amount: ${amount}, originUID: ${originUID || 'NO PROPORCIONADO'}`);
 
             // Validar que el amount exista y sea un número válido
             if (isNaN(amount) || amount <= 0) {
@@ -363,13 +363,13 @@ class LinkedUserPhoneNumbersTransferController {
                     
                     if (originAccount) {
                         isOriginPaysat = originAccount.affiliateName === 'PAYSAT MONEY LTD';
-                        console.log(`[getPhoneNumberTransferFee] Cuenta encontrada: ${originAccount.affiliateName}, isOriginPaysat: ${isOriginPaysat}`);
+                        // console.log(`[getPhoneNumberTransferFee] Cuenta encontrada: ${originAccount.affiliateName}, isOriginPaysat: ${isOriginPaysat}`);
                     }
                 }
 
                 // Si la cuenta origen es PaySat, el fee es 0
                 if (isOriginPaysat) {
-                    console.log(`[getPhoneNumberTransferFee] Retornando fee=0 para cuenta PaySat`);
+                    // console.log(`[getPhoneNumberTransferFee] Retornando fee=0 para cuenta PaySat`);
                     return res.status(200).json({
                         ok: true,
                         data: {
@@ -417,7 +417,7 @@ class LinkedUserPhoneNumbersTransferController {
             }
 
             // Retornar el fee
-            console.log(`[getPhoneNumberTransferFee] Retornando fee=${feeData.mobilePaymentFeeValue} para cuenta externa (${docName})`);
+            // console.log(`[getPhoneNumberTransferFee] Retornando fee=${feeData.mobilePaymentFeeValue} para cuenta externa (${docName})`);
             return res.status(200).json({
                 ok: true,
                 data: {
@@ -430,7 +430,7 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error al obtener el fee de transferencia:', error);
+            // console.error('Error al obtener el fee de transferencia:', error);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al obtener el fee de transferencia',
@@ -504,7 +504,7 @@ class LinkedUserPhoneNumbersTransferController {
             // Determinar si el origen es cuenta PaySat
             const isOriginPaysat = originAccount.affiliateName === 'PAYSAT MONEY LTD';
 
-            console.log(`[sendTransferToPhoneNumber] Cuenta origen: ${originAccount.affiliateName}, isOriginPaysat: ${isOriginPaysat}`);
+            // console.log(`[sendTransferToPhoneNumber] Cuenta origen: ${originAccount.affiliateName}, isOriginPaysat: ${isOriginPaysat}`);
 
             // 4. DETERMINAR FEE (si origen es PaySat, fee = 0)
             let feeValue = 0;
@@ -530,7 +530,7 @@ class LinkedUserPhoneNumbersTransferController {
             }
             // Si es PaySat, feeValue ya es 0 desde la inicialización
 
-            console.log(`[sendTransferToPhoneNumber] Fee calculado: ${feeValue}, Monto: ${transferAmount}, Total requerido: ${transferAmount + feeValue}`);
+            // console.log(`[sendTransferToPhoneNumber] Fee calculado: ${feeValue}, Monto: ${transferAmount}, Total requerido: ${transferAmount + feeValue}`);
 
             // 5. OBTENER CUENTA PRINCIPAL PAYSAT DEL USUARIO ORIGEN
             const userMainAccountRef = db.collection('Banco_PaySat_Money').doc(uid);
@@ -1323,13 +1323,13 @@ class LinkedUserPhoneNumbersTransferController {
                     }
                 }
             } catch (ledgerError) {
-                console.error('Error registrando en ledger:', ledgerError);
+                // console.error('Error registrando en ledger:', ledgerError);
                 // No fallar la transacción por error en ledger
             }
 
             // 14. ENVIAR NOTIFICACIONES PUSH Y SMS
             try {
-                console.log(`[sendTransferToPhoneNumber] Preparando notificaciones - OriginUID: ${uid}, DestinationUID: ${destinationUID}, DestinationExists: ${destinationUserExists}`);
+                // console.log(`[sendTransferToPhoneNumber] Preparando notificaciones - OriginUID: ${uid}, DestinationUID: ${destinationUID}, DestinationExists: ${destinationUserExists}`);
                 
                 const notificationData = {
                     originUID: uid,
@@ -1349,12 +1349,12 @@ class LinkedUserPhoneNumbersTransferController {
                 const notificationResult = await sendMobileTransferNotifications(notificationData);
                 
                 if (notificationResult.success) {
-                    console.log('Notificaciones enviadas exitosamente:', notificationResult);
+                    // console.log('Notificaciones enviadas exitosamente:', notificationResult);
                 } else {
-                    console.error('Error enviando notificaciones:', notificationResult.error);
+                    // console.error('Error enviando notificaciones:', notificationResult.error);
                 }
             } catch (notificationError) {
-                console.error('Error en el envío de notificaciones:', notificationError);
+                // console.error('Error en el envío de notificaciones:', notificationError);
                 // No fallar la transacción por error en notificaciones
             }
 
@@ -1377,7 +1377,7 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error en sendTransferToPhoneNumber:', error);
+            // console.error('Error en sendTransferToPhoneNumber:', error);
             return res.status(500).json({
                 ok: false,
                 message: 'Error al procesar la transferencia',
@@ -1453,7 +1453,7 @@ class LinkedUserPhoneNumbersTransferController {
             const userAccountData = userAccountDoc.data();
             const userAccountRef = userAccountDoc.ref;
 
-            console.log(`[receivePendingPhoneNumberTransfer] Usuario: ${userAccountData.fullName}, Teléfono: ${userPhoneNumber}`);
+            // console.log(`[receivePendingPhoneNumberTransfer] Usuario: ${userAccountData.fullName}, Teléfono: ${userPhoneNumber}`);
 
             // 4. OBTENER CUENTA MASTER DE PAYSAT
             const PAYSAT_MAIN_ACCOUNT_UID = process.env.PAYSAT_MAIN_ACCOUNT_UID;
@@ -1496,7 +1496,7 @@ class LinkedUserPhoneNumbersTransferController {
                 });
             }
 
-            console.log(`[receivePendingPhoneNumberTransfer] Encontradas ${pendingTransfers.length} transferencias pendientes`);
+            // console.log(`[receivePendingPhoneNumberTransfer] Encontradas ${pendingTransfers.length} transferencias pendientes`);
 
             // 6. CALCULAR TOTAL A TRANSFERIR
             const totalToTransfer = pendingTransfers.reduce((sum, transfer) => sum + (transfer.amount || 0), 0);
@@ -1652,7 +1652,7 @@ class LinkedUserPhoneNumbersTransferController {
                     customerMovements: admin.firestore.FieldValue.arrayUnion(...userMovementsToAdd)
                 });
 
-                console.log(`[receivePendingPhoneNumberTransfer] Procesadas ${processedTransfers.length} transferencias en transacción`);
+                // console.log(`[receivePendingPhoneNumberTransfer] Procesadas ${processedTransfers.length} transferencias en transacción`);
             });
 
             // 8. REGISTRAR EN LEDGER (fuera de la transacción)
@@ -1679,7 +1679,7 @@ class LinkedUserPhoneNumbersTransferController {
                     });
                 }
             } catch (ledgerError) {
-                console.error('Error registrando en ledger:', ledgerError);
+                // console.error('Error registrando en ledger:', ledgerError);
                 // No fallar el proceso por error en ledger, ya que la transacción atómica se completó
             }
 
@@ -1689,7 +1689,7 @@ class LinkedUserPhoneNumbersTransferController {
                 firstLoginProcessedAt: admin.firestore.Timestamp.now()
             });
 
-            console.log(`[receivePendingPhoneNumberTransfer] Proceso completado exitosamente`);
+            // console.log(`[receivePendingPhoneNumberTransfer] Proceso completado exitosamente`);
 
             // 10. RESPUESTA EXITOSA
             return res.status(200).json({
@@ -1707,7 +1707,7 @@ class LinkedUserPhoneNumbersTransferController {
             });
 
         } catch (error) {
-            console.error('Error en receivePendingPhoneNumberTransfer:', error);
+            // console.error('Error en receivePendingPhoneNumberTransfer:', error);
             
             // En caso de error, la transacción de Firestore ya hizo rollback automáticamente
             return res.status(500).json({
