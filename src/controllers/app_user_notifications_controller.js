@@ -194,20 +194,18 @@ class AppUserNotificationsController {
     //   console.log('\n================================================\n');
 
       // 6. MARCAR NOTIFICACIONES COMO LEÍDAS
+      let notificationsToReturn = filteredNotifications;
+      
       if (filteredNotifications.length > 0) {
-        // Marcar las notificaciones filtradas como leídas
-        filteredNotifications.forEach(notification => {
-          notification.read = true;
-        });
+        // Crear Set de tokens de las notificaciones filtradas para búsqueda rápida
+        const filteredTokens = new Set(
+          filteredNotifications.map(n => n.tokenTransaction)
+        );
 
         // Actualizar todas las notificaciones para marcar las filtradas como leídas
         const updatedNotifications = allNotifications.map(notification => {
           // Verificar si esta notificación está en las filtradas
-          const isFiltered = filteredNotifications.some(
-            filtered => filtered.tokenTransaction === notification.tokenTransaction
-          );
-          
-          if (isFiltered) {
+          if (filteredTokens.has(notification.tokenTransaction)) {
             return { ...notification, read: true };
           }
           return notification;
@@ -218,14 +216,20 @@ class AppUserNotificationsController {
           notifications: updatedNotifications
         });
 
-        console.log(`✅ Marcadas ${filteredNotifications.length} notificaciones como leídas`);
+        // Crear array de notificaciones a retornar con read: true
+        notificationsToReturn = filteredNotifications.map(notification => ({
+          ...notification,
+          read: true
+        }));
+
+        console.log(`✅ Marcadas ${filteredNotifications.length} notificaciones como leídas en Firestore`);
       }
 
       // 7. RESPUESTA EXITOSA
       return res.status(200).json({
         ok: true,
-        notifications: filteredNotifications,
-        count: filteredNotifications.length,
+        notifications: notificationsToReturn,
+        count: notificationsToReturn.length,
         rangoFechas: {
           inicio: fechaInicio,
           fin: fechaFin
