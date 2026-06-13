@@ -47,7 +47,7 @@ router.get('/view', (req, res) => {
                         position: relative;
                         border-radius: 18px;
                         padding: 24px 80px 7px 24px;
-                        background-image: url('https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fcard%2Fcard_secure_view.jpg?alt=media&token=64ce69b4-4314-470c-9ac2-b2e06a4d21e8');
+                        background-image: url('https://firebasestorage.googleapis.com/v0/b/paysatv2.firebasestorage.app/o/assets%2Fcard%2Fcard_security_view.png?alt=media&token=a0ed37a3-d28d-41b7-828a-477d0c9eb87a');
                         background-size: cover;
                         background-position: center;
                         background-repeat: no-repeat;
