@@ -69,6 +69,10 @@ router.get('/qr/list/my-qrs', qrLinkedUserPhoneNumbersTransferController.listMyQ
 router.post('/notifications/list', appUserNotificationsController.listTransferNotifications);
 
 
+//------------------------------------------------------------------------------------------------------------------------------------//
+// VERIFICACION DE TARJETA STRIPE ANTES DE TRANSFERENCIA PAYSAT
+router.post('/payments/confirm-with-payment-method', appPaySatTransferController.confirmWithPaymentMethod);
+
 //-----------------------------------------------------------------------------------------------------------------------------------//
 router.post('/send', appTransfersController.send);
 
