@@ -195,6 +195,11 @@ class AppUserNotificationsController {
 
       // 6. MARCAR NOTIFICACIONES COMO LEÍDAS
       if (filteredNotifications.length > 0) {
+        // Marcar las notificaciones filtradas como leídas
+        filteredNotifications.forEach(notification => {
+          notification.read = true;
+        });
+
         // Actualizar todas las notificaciones para marcar las filtradas como leídas
         const updatedNotifications = allNotifications.map(notification => {
           // Verificar si esta notificación está en las filtradas
