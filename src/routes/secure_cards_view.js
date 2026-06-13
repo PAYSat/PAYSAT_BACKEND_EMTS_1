@@ -119,7 +119,7 @@ router.get('/view', (req, res) => {
                 
                       <div class="card-container">
                         <div>
-                          <div class="card-label">Número de tarjeta</div>
+                          <!--div class="card-label">Número de tarjeta</div-->
                           <div id="card-number" class="card-value"></div>
                         </div>
                 
