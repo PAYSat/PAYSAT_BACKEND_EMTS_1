@@ -134,10 +134,10 @@ router.get('/view', (req, res) => {
                           </div>
                         </div>
                 
-                        <div class="card-footer">
+                        <!--div class="card-footer">
                           <span class="badge">Virtual • Stripe Issuing</span>
                           <span></span>
-                        </div>
+                        </div-->
                       </div>
                 
                       <div id="error-message"></div>
