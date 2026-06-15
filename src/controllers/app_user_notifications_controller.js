@@ -77,12 +77,15 @@ class AppUserNotificationsController {
         try {
           const dateStr = notification.createdAt;
           
-          // Regex más flexible para manejar diferentes formatos
+          // Regex mejorada para manejar AMBOS formatos:
+          // Formato 1: "15 de junio de 2026 a las 2:50:33 p. m."
+          // Formato 2: "15 de junio de 2026, 2:43:15 p. m."
           // Captura: día, mes, año, hora, minuto, segundo, am/pm
-          const dateMatch = dateStr.match(/(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:,?\s+a\s+las?)?\s+(\d+):(\d+):(\d+)\s+(a\.\s?m\.|p\.\s?m\.)/i);
+          // Permite: coma opcional, "a las" opcional, espacios flexibles
+          const dateMatch = dateStr.match(/(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:,|\s+a\s+las)?\s+(\d+):(\d+):(\d+)\s+(a\.?\s?m\.|p\.?\s?m\.)/i);
           
           if (!dateMatch) {
-            // console.log(`[FILTRO] No se pudo parsear la fecha: "${dateStr}"`);
+            console.log(`[FILTRO] No se pudo parsear la fecha: "${dateStr}"`);
             return false;
           }
 
@@ -138,8 +141,10 @@ class AppUserNotificationsController {
         try {
           // Parsear fechas para ordenar
           const parseSpanishDate = (dateStr) => {
-            // Regex más flexible
-            const dateMatch = dateStr.match(/(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:,?\s+a\s+las?)?\s+(\d+):(\d+):(\d+)\s+(a\.\s?m\.|p\.\s?m\.)/i);
+            // Regex mejorada para manejar AMBOS formatos:
+            // Formato 1: "15 de junio de 2026 a las 2:50:33 p. m."
+            // Formato 2: "15 de junio de 2026, 2:43:15 p. m."
+            const dateMatch = dateStr.match(/(\d+)\s+de\s+(\w+)\s+de\s+(\d+)(?:,|\s+a\s+las)?\s+(\d+):(\d+):(\d+)\s+(a\.?\s?m\.|p\.?\s?m\.)/i);
             if (!dateMatch) return new Date(0);
 
             const day = parseInt(dateMatch[1]);
