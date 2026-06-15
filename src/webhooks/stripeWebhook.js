@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser';
 import { stripe } from '../config/stripe.js';
-import { db } from '../config/firebase.js';
+import { db, admin } from '../config/firebase.js';
 import { emailService } from '../services/send_email_service.js';
 import { getFeesByRecharge, getFeesByPaymentIntent } from '../services/stripe_fees_service.js';
 import { processCompleteTransaction } from '../services/movements_service.js';
@@ -371,6 +371,63 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
           
           // Si la transacción devolvió false, significa que ya fue procesado
           if (!canProcess) {
+            // 📲 IMPORTANTE: Guardar notificación si no existe (webhook duplicado)
+            try {
+              const userNotificationsRef = db.collection('PaySat_User_Notifications').doc(paysatUID);
+              const userNotificationsDoc = await userNotificationsRef.get();
+              
+              if (userNotificationsDoc.exists) {
+                const userData = userNotificationsDoc.data();
+                const notifications = userData.notifications || [];
+                const notificationToken = `recharge_${charge.id}`;
+                
+                // Verificar si la notificación ya existe
+                const notificationExists = notifications.some(n => n.tokenTransaction === notificationToken);
+                
+                if (!notificationExists) {
+                  console.log('📲 Guardando notificación de recarga (webhook duplicado)...');
+                  
+                  const depositAmount = centsToAmount(charge.amount);
+                  const amountFormatted = new Intl.NumberFormat('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  }).format(depositAmount);
+
+                  const notificationTitle = '💳 Recarga PAYSAT completada';
+                  const notificationBody = `Tu recarga de $${amountFormatted} USD ha sido procesada exitosamente. El monto ya está disponible en tu cuenta PAYSAT.`;
+                  
+                  const createdAt = new Date().toLocaleString('es-EC', { 
+                    timeZone: 'America/Guayaquil',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    second: 'numeric',
+                    hour12: true
+                  });
+
+                  const notificationEntry = {
+                    title: notificationTitle,
+                    body: notificationBody,
+                    tokenTransaction: notificationToken,
+                    createdAt,
+                    read: false
+                  };
+
+                  await userNotificationsRef.set({
+                    notifications: admin.firestore.FieldValue.arrayUnion(notificationEntry)
+                  }, { merge: true });
+
+                  console.log('✅ Notificación de recarga guardada (recuperación de webhook duplicado)');
+                } else {
+                  console.log('ℹ️ Notificación de recarga ya existe, saltando');
+                }
+              }
+            } catch (notifError) {
+              console.error('⚠️ Error verificando/guardando notificación en webhook duplicado:', notifError);
+            }
+            
             return res.json({ received: true, status: 'charge_already_processed_atomic' });
           }
           
@@ -569,6 +626,46 @@ router.post('/', bodyParser.raw({ type: 'application/json' }), async (req, res) 
         });
 
         console.log('✅ Sesión actualizada con movimientos procesados');
+
+        // 📲 Guardar notificación de recarga exitosa
+        try {
+          const amountFormatted = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }).format(depositAmount);
+
+          const notificationTitle = '💳 Recarga PAYSAT completada';
+          const notificationBody = `Tu recarga de $${amountFormatted} USD ha sido procesada exitosamente. El monto ya está disponible en tu cuenta PAYSAT.`;
+          
+          const createdAt = new Date().toLocaleString('es-EC', { 
+            timeZone: 'America/Guayaquil',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+          });
+
+          const notificationEntry = {
+            title: notificationTitle,
+            body: notificationBody,
+            tokenTransaction: `recharge_${charge.id}`,
+            createdAt,
+            read: false
+          };
+
+          const userNotificationsRef = db.collection('PaySat_User_Notifications').doc(paysatUID);
+          await userNotificationsRef.set({
+            notifications: admin.firestore.FieldValue.arrayUnion(notificationEntry)
+          }, { merge: true });
+
+          console.log('✅ Notificación de recarga guardada para usuario:', paysatUID);
+        } catch (notificationError) {
+          console.error('❌ Error guardando notificación de recarga:', notificationError);
+          // No detener el proceso si falla la notificación
+        }
 
         // Envío de email (igual que antes)
         if (feeData && feeData.totalFee && feeData.net) {
