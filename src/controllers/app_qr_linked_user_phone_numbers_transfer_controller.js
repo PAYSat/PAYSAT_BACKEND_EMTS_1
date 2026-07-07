@@ -476,7 +476,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                 expiresAt: expiresAt,
                 amount: paymentAmount,
                 currency: 'USD',
-                concept: concept || 'Pago con QR PAGOCEL',
+                concept: concept || 'Pago con QR PAYSAT',
                 nonce: nonce,
                 createdFromDevice: req.headers['user-agent'] || 'unknown',
                 createdAt: issuedAt,
@@ -1124,10 +1124,10 @@ class QRLinkedUserPhoneNumbersTransferController {
                 });
             }
 
-            if (transferAmount > 1000.00) {
+            if (transferAmount > 5000.00) {
                 return res.status(400).json({
                     ok: false,
-                    message: 'El monto no puede superar los 1000.00'
+                    message: 'El monto no puede superar los 5000.00'
                 });
             }
 
