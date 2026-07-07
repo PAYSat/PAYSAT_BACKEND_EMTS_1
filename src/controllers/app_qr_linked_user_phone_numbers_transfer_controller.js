@@ -476,7 +476,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                 expiresAt: expiresAt,
                 amount: paymentAmount,
                 currency: 'USD',
-                concept: concept || 'Pago con QR PAYSAT',
+                concept: concept || 'Pago con QR PAGOCEL',
                 nonce: nonce,
                 createdFromDevice: req.headers['user-agent'] || 'unknown',
                 createdAt: issuedAt,
@@ -1228,7 +1228,7 @@ class QRLinkedUserPhoneNumbersTransferController {
             if (destinationUserExists) {
                 destinationUserData = destinationUsersSnapshot.docs[0].data();
                 destinationUID = destinationUsersSnapshot.docs[0].id;
-                // console.log(`[qrPerformTransferToPhoneNumber] Usuario destino ENCONTRADO: ${destinationUID}, ${destinationUserData.fullName}`);
+                // console.log(`[qrPerformTransferToPhoneNumber] Usuario destino ENCONTRADO: ${destinationUID}, ${destinationUserData.customerName}`);
             } else {
                 // console.log(`[qrPerformTransferToPhoneNumber] Usuario destino NO ENCONTRADO para phone: ${destinationPhoneNumber}, account: ${destinationAccountNumber}`);
             }
@@ -1374,7 +1374,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                             description: `send_${movementSentId}`,
                             paysatUID: uid,
                             updatedAt: timestamp,
-                            userName: destinationUserName || destinationUserData.fullName || 'Usuario',
+                            userName: destinationUserName || destinationUserData.customerName || 'Usuario',
                             originUID: uid,
                             destinationUID: destinationUID,
                             typeMovement: 'mobile_transfer_sent',
@@ -1423,7 +1423,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                             description: `received_${movementReceivedId}`,
                             paysatUID: destinationUID,
                             updatedAt: timestamp,
-                            userName: userMainAccountData.fullName || 'Usuario',
+                            userName: userMainAccountData.customerName || 'Usuario',
                             originUID: uid,
                             destinationUID: destinationUID,
                             typeMovement: 'mobile_transfer_received',
@@ -1557,7 +1557,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                             description: `send_${movementSentId}`,
                             paysatUID: uid,
                             updatedAt: timestamp,
-                            userName: destinationUserName || destinationUserData.fullName || 'Usuario',
+                            userName: destinationUserName || destinationUserData.customerName || 'Usuario',
                             originUID: uid,
                             originType: 'external_account',
                             originAffiliateName: originAccount.affiliateName,
@@ -1608,7 +1608,7 @@ class QRLinkedUserPhoneNumbersTransferController {
                             description: `received_${movementReceivedId}`,
                             paysatUID: destinationUID,
                             updatedAt: timestamp,
-                            userName: userMainAccountData.fullName || 'Usuario',
+                            userName: userMainAccountData.customerName || 'Usuario',
                             originUID: uid,
                             destinationUID: destinationUID,
                             typeMovement: 'mobile_transfer_received',
@@ -2006,8 +2006,8 @@ class QRLinkedUserPhoneNumbersTransferController {
                     destinationUID: destinationUID,
                     destinationUserExists: destinationUserExists,
                     amount: transferAmount,
-                    destinationName: destinationUserName || (destinationUserData ? destinationUserData.fullName : 'Usuario'),
-                    originName: userMainAccountData.fullName || 'Usuario',
+                    destinationName: destinationUserName || (destinationUserData ? destinationUserData.customerName : 'Usuario'),
+                    originName: userMainAccountData.customerName || 'Usuario',
                     destinationPhoneNumber: destinationPhoneNumber,
                     isOriginPaySat: isOriginPaysat,
                     affiliateName: originAccount.affiliateName,
