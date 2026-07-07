@@ -1124,10 +1124,10 @@ class QRLinkedUserPhoneNumbersTransferController {
                 });
             }
 
-            if (transferAmount > 5000.00) {
+            if (transferAmount > 1000.00) {
                 return res.status(400).json({
                     ok: false,
-                    message: 'El monto no puede superar los 5000.00'
+                    message: 'El monto no puede superar los 1000.00'
                 });
             }
 
